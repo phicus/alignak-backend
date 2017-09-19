@@ -2280,10 +2280,10 @@ def grafana_annotations(engine='jsonify'):
     """
     posted_data = request.json
     annotation = None
-    query = None
+    annotation_query = None
     try:
         annotation = posted_data.get("annotation")
-        query = annotation.get("query")
+        annotation_query = annotation.get("query")
         time_frame = posted_data.get("range")
         range_from = time_frame.get("from")
         range_from_date = parser.parse(range_from)
@@ -2297,17 +2297,17 @@ def grafana_annotations(engine='jsonify'):
         hosts = []
         services = []
 
-        query = query.split(':')
+        query = annotation_query.split(':')
         if len(query) < 3:
-            abort(400, description='Bad format for query: %s. '
-                                   'Query must be something like endpoint:type:target.' % query)
+            abort(400,
+                  description='Bad format for query: %s. Query must be '
+                              'something like endpoint:type:target.' % annotation_query)
 
         endpoint = query[0]
         if endpoint not in ['history', 'livestate']:
-            abort(400, description='Bad endpoint for query: %s. '
-                                   'Only history and livestate are available.' % query)
-
-        print("Query: %s" % query)
+            abort(400,
+                  description='Bad endpoint for query: %s. '
+                              'Only history and livestate are available.' % annotation_query)
 
         event_type = query[1]
         hosts = query[2]
@@ -2360,7 +2360,6 @@ def grafana_annotations(engine='jsonify'):
 
             hosts = host_db.find(search)
             for host in hosts:
-                print ("host: %s / %s / %s" % (host['name'], host['alias'], host['tags']))
                 text = "%s: %s (%s) - %s" % (host['name'],
                                              host['ls_state'], host['ls_state_type'],
                                              host['ls_output'])

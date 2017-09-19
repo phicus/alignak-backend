@@ -360,10 +360,9 @@ class TestGrafana(unittest2.TestCase):
         response = requests.post(self.endpoint + '/annotations',
                                  json=data, headers=headers, auth=self.auth)
         resp = response.json()
-        print (resp)
+        print(resp)
         assert "_error" in resp
-        assert resp["_error"]["message"] == u"Bad format for query: " \
-                                            u"[u'fake']. " \
+        assert resp["_error"]["message"] == u"Bad format for query: fake. " \
                                             u"Query must be something like endpoint:type:target."
 
         # Grafana request for some annotations
@@ -390,10 +389,9 @@ class TestGrafana(unittest2.TestCase):
         response = requests.post(self.endpoint + '/annotations',
                                  json=data, headers=headers, auth=self.auth)
         resp = response.json()
-        print (resp)
+        print(resp)
         assert "_error" in resp
-        assert resp["_error"]["message"] == u"Bad endpoint for query: " \
-                                            u"[u'fake', u'whatever', u'{srv001}']. " \
+        assert resp["_error"]["message"] == u"Bad endpoint for query: fake:whatever:{srv001}. " \
                                             u"Only history and livestate are available."
 
     def test_grafana_history_annotations(self):
@@ -715,9 +713,9 @@ class TestGrafana(unittest2.TestCase):
         self.assertEqual(rsp['annotation'], data['annotation'])
         self.assertIn('time', rsp)
         self.assertIn('title', rsp)
-        self.assertEqual(rsp['title'], "Server #1") # Alias
+        self.assertEqual(rsp['title'], "Server #1")  # Alias
         self.assertIn('tags', rsp)
-        self.assertEqual(rsp['tags'], ["t1", "t2"]) # Tags
+        self.assertEqual(rsp['tags'], ["t1", "t2"])  # Tags
         self.assertIn('text', rsp)
         self.assertEqual(rsp['text'], "srv001: UNREACHABLE (HARD) - ")     # Live state
 
@@ -746,9 +744,9 @@ class TestGrafana(unittest2.TestCase):
         self.assertEqual(rsp['annotation'], data['annotation'])
         self.assertIn('time', rsp)
         self.assertIn('title', rsp)
-        self.assertEqual(rsp['title'], "Server #1") # Alias
+        self.assertEqual(rsp['title'], "Server #1")  # Alias
         self.assertIn('tags', rsp)
-        self.assertEqual(rsp['tags'], ["t1", "t2"]) # Tags
+        self.assertEqual(rsp['tags'], ["t1", "t2"])  # Tags
         self.assertIn('text', rsp)
         self.assertEqual(rsp['text'], "srv001: UNREACHABLE (HARD) - ")
 
@@ -757,9 +755,9 @@ class TestGrafana(unittest2.TestCase):
         self.assertEqual(rsp['annotation'], data['annotation'])
         self.assertIn('time', rsp)
         self.assertIn('title', rsp)
-        self.assertEqual(rsp['title'], "Server #2") # Alias
+        self.assertEqual(rsp['title'], "Server #2")     # Alias
         self.assertIn('tags', rsp)
-        self.assertEqual(rsp['tags'], ["t2"]) # Tags
+        self.assertEqual(rsp['tags'], ["t2"])           # Tags
         self.assertIn('text', rsp)
         self.assertEqual(rsp['text'], "srv002: UNREACHABLE (HARD) - ")
 
