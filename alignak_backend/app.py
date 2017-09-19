@@ -2281,8 +2281,6 @@ def grafana_annotations(engine='jsonify'):
     posted_data = request.json
     annotation = None
     query = None
-    hosts = []
-    services = []
     try:
         annotation = posted_data.get("annotation")
         query = annotation.get("query")
@@ -2296,51 +2294,84 @@ def grafana_annotations(engine='jsonify'):
 
     with app.test_request_context():
         resp = []
-        history_db = current_app.data.driver.db['history']
+        hosts = []
+        services = []
 
-        query = query.split('/')
-        if len(query) < 2:
+        query = query.split(':')
+        if len(query) < 3:
             abort(400, description='Bad format for query: %s. '
-                                   'Query must be something like event_type/target' % query)
+                                   'Query must be something like endpoint:type:target.' % query)
 
-        event_type = query[0]
-        hosts = query[1]
+        endpoint = query[0]
+        if endpoint not in ['history', 'livestate']:
+            abort(400, description='Bad endpoint for query: %s. '
+                                   'Only history and livestate are available.' % query)
+
+        print("Query: %s" % query)
+
+        event_type = query[1]
+        hosts = query[2]
         hosts = hosts.replace("{", "")
         hosts = hosts.replace("}", "")
         hosts = hosts.split(",")
-        if len(query) > 2:
-            services = query[2]
+        if len(query) > 3:
+            services = query[3]
             services = services.replace("{", "")
             services = services.replace("}", "")
             services = services.split(",")
 
-        search = {
-            "type": event_type,
-            "host_name": {"$in": hosts},
-            "_created": {"$gte": range_from_date, "$lte": range_to_date},
-        }
-        if services:
-            search["service_name"] = {"$in": services}
-
-        history = history_db.find(search)
-
-        for event in history:
-            title = event['message']
-            if "host_name" in event and event["host_name"]:
-                if "service_name" in event and event["service_name"]:
-                    title = "%s/%s - %s" \
-                            % (event["host_name"], event["service_name"], event["message"])
-                else:
-                    title = "%s - %s" \
-                            % (event["host_name"], event["message"])
-            item = {
-                "annotation": annotation,
-                "time": event['_updated'],
-                "title": title,
-                "tags": [event["type"]],
-                "text": event['message']
+        if endpoint == 'history':
+            history_db = current_app.data.driver.db['history']
+            search = {
+                "type": event_type,
+                "host_name": {"$in": hosts},
+                "_created": {"$gte": range_from_date, "$lte": range_to_date},
             }
-            resp.append(item)
+            if services:
+                search["service_name"] = {"$in": services}
+
+            history = history_db.find(search)
+
+            for event in history:
+                title = event['message']
+                if "host_name" in event and event["host_name"]:
+                    if "service_name" in event and event["service_name"]:
+                        title = "%s/%s - %s" \
+                                % (event["host_name"], event["service_name"], event["message"])
+                    else:
+                        title = "%s - %s" \
+                                % (event["host_name"], event["message"])
+                item = {
+                    "annotation": annotation,
+                    "time": event['_updated'],
+                    "title": title,
+                    "tags": [event["type"]],
+                    "text": event['message']
+                }
+                resp.append(item)
+
+        if endpoint == 'livestate':
+            host_db = current_app.data.driver.db['host']
+            search = {
+                "name": {"$in": hosts}
+            }
+            if services:
+                search["name"] = {"$in": services}
+
+            hosts = host_db.find(search)
+            for host in hosts:
+                print ("host: %s / %s / %s" % (host['name'], host['alias'], host['tags']))
+                text = "%s: %s (%s) - %s" % (host['name'],
+                                             host['ls_state'], host['ls_state_type'],
+                                             host['ls_output'])
+                item = {
+                    "annotation": annotation,
+                    "time": host['_updated'],
+                    "title": host['alias'],
+                    "tags": host['tags'],
+                    "text": text
+                }
+                resp.append(item)
 
         if engine == 'jsonify':
             return jsonify(resp)

@@ -156,6 +156,8 @@ class TestGrafana(unittest2.TestCase):
             del data['realm']
         data['_realm'] = cls.realmAll_A1
         data['name'] = "srv002"
+        data['alias'] = "Server #2"
+        data['tags'] = ["t2"]
         data['ls_last_check'] = int(time.time())
         data['ls_perf_data'] = "rta=14.581000ms;1000.000000;3000.000000;0.000000 pl=0%;100;100;0"
         response = requests.post(cls.endpoint + '/host', json=data, headers=headers, auth=cls.auth)
@@ -319,9 +321,84 @@ class TestGrafana(unittest2.TestCase):
         }
         requests.post(self.endpoint + '/graphite', json=data, headers=headers, auth=self.auth)
 
-    def test_grafana_annotations(self):
+    def test_grafana_annotations_error(self):
         """
-        Get annotations
+        Get annotations with some errors
+
+        :return: None
+        """
+        headers = {'Content-Type': 'application/json'}
+
+        # Request some annotations
+        # Time frame for the request - whatever, this endpoint do not care about the time frame!!!
+        now = datetime.utcnow()
+        range_to = now.strftime('%a, %d %b %Y %H:%M:%S GMT')
+        past = now - timedelta(days=5)
+        range_from = past.strftime('%a, %d %b %Y %H:%M:%S GMT')
+
+        # Grafana request for some annotations
+        # Error on syntax
+        data = {
+            u'range': {
+                u'from': range_from,
+                u'to': range_to,
+                # Ignored...
+                u'raw': {u'to': u'now', u'from': u'now-6h'}
+            },
+            # Ignored...
+            u'rangeRaw': {u'to': u'now', u'from': u'now-6h'},
+            u'annotation': {
+                # Request bad query !
+                u'query': u'fake',
+                # 4 ignored fields...
+                u'iconColor': u'rgba(255, 96, 96, 1)',
+                u'enable': True,
+                u'name': u'Host alerts',
+                u'datasource': u'Backend'
+            }
+        }
+        response = requests.post(self.endpoint + '/annotations',
+                                 json=data, headers=headers, auth=self.auth)
+        resp = response.json()
+        print (resp)
+        assert "_error" in resp
+        assert resp["_error"]["message"] == u"Bad format for query: " \
+                                            u"[u'fake']. " \
+                                            u"Query must be something like endpoint:type:target."
+
+        # Grafana request for some annotations
+        # Error on endpoint
+        data = {
+            u'range': {
+                u'from': range_from,
+                u'to': range_to,
+                # Ignored...
+                u'raw': {u'to': u'now', u'from': u'now-6h'}
+            },
+            # Ignored...
+            u'rangeRaw': {u'to': u'now', u'from': u'now-6h'},
+            u'annotation': {
+                # Request bad query !
+                u'query': u'fake:whatever:{srv001}',
+                # 4 ignored fields...
+                u'iconColor': u'rgba(255, 96, 96, 1)',
+                u'enable': True,
+                u'name': u'Host alerts',
+                u'datasource': u'Backend'
+            }
+        }
+        response = requests.post(self.endpoint + '/annotations',
+                                 json=data, headers=headers, auth=self.auth)
+        resp = response.json()
+        print (resp)
+        assert "_error" in resp
+        assert resp["_error"]["message"] == u"Bad endpoint for query: " \
+                                            u"[u'fake', u'whatever', u'{srv001}']. " \
+                                            u"Only history and livestate are available."
+
+    def test_grafana_history_annotations(self):
+        """
+        Get annotations from history
 
         :return: None
         """
@@ -407,7 +484,7 @@ class TestGrafana(unittest2.TestCase):
             u'rangeRaw': {u'to': u'now', u'from': u'now-6h'},
             u'annotation': {
                 # Request for alerts of hosts test and test1
-                u'query': u'monitoring.alert/{test,test1}',
+                u'query': u'history:monitoring.alert:{test,test1}',
                 # 4 ignored fields...
                 u'iconColor': u'rgba(255, 96, 96, 1)',
                 u'enable': True,
@@ -417,6 +494,7 @@ class TestGrafana(unittest2.TestCase):
         }
         response = requests.post(self.endpoint + '/annotations',
                                  json=data, headers=headers, auth=self.auth)
+        print("Response: %s" % response)
         resp = response.json()
         # No items in the response
         print("Response :%s" % resp)
@@ -444,7 +522,7 @@ class TestGrafana(unittest2.TestCase):
             u'rangeRaw': {u'to': u'now', u'from': u'now-6h'},
             u'annotation': {
                 # Request for alerts of hosts test and test1
-                u'query': u'monitoring.alert/{test,test1}',
+                u'query': u'history:monitoring.alert:{test,test1}',
                 # 4 ignored fields...
                 u'iconColor': u'rgba(255, 96, 96, 1)',
                 u'enable': True,
@@ -503,7 +581,7 @@ class TestGrafana(unittest2.TestCase):
             },
             u'annotation': {
                 # Request for alerts of hosts test and test1
-                u'query': u'monitoring.alert/test',
+                u'query': u'history:monitoring.alert:test',
             }
         }
         response = requests.post(self.endpoint + '/annotations',
@@ -534,8 +612,8 @@ class TestGrafana(unittest2.TestCase):
             },
             # Ignored...
             u'annotation': {
-                # Request for alerts of the service "service " for the host test
-                u'query': u'monitoring.alert/test/service',
+                # Request for alerts of the service "service" for the host "test"
+                u'query': u'history:monitoring.alert:test:service',
             }
         }
         response = requests.post(self.endpoint + '/annotations',
@@ -567,7 +645,7 @@ class TestGrafana(unittest2.TestCase):
             # Ignored...
             u'annotation': {
                 # Request for alerts of the host test
-                u'query': u'fake.event/test',
+                u'query': u'history:fake.event:test',
             }
         }
         response = requests.post(self.endpoint + '/annotations',
@@ -575,6 +653,115 @@ class TestGrafana(unittest2.TestCase):
         resp = response.json()
         # One item in the response
         self.assertEqual(len(resp), 0)
+
+    def test_grafana_livestate_annotations(self):
+        """
+        Get annotations from livestate
+
+        :return: None
+        """
+        headers = {'Content-Type': 'application/json'}
+
+        # Request some annotations
+        # 2- with results in the time frame
+        # Time frame for the request - whatever, this endpoint do not car about the time frame!!!
+        now = datetime.utcnow()
+        range_to = now.strftime('%a, %d %b %Y %H:%M:%S GMT')
+        # One day in the past
+        past = now - timedelta(days=5)
+        range_from = past.strftime('%a, %d %b %Y %H:%M:%S GMT')
+
+        # Grafana request for some annotations
+        data = {
+            u'range': {
+                u'from': range_from,
+                u'to': range_to,
+                # Ignored...
+                u'raw': {u'to': u'now', u'from': u'now-6h'}
+            },
+            # Ignored...
+            u'rangeRaw': {u'to': u'now', u'from': u'now-6h'},
+            u'annotation': {
+                # Request for livestate of hosts srv001
+                u'query': u'livestate:whatever:{srv001}',
+                # 4 ignored fields...
+                u'iconColor': u'rgba(255, 96, 96, 1)',
+                u'enable': True,
+                u'name': u'Host alerts',
+                u'datasource': u'Backend'
+            }
+        }
+        response = requests.post(self.endpoint + '/annotations',
+                                 json=data, headers=headers, auth=self.auth)
+        resp = response.json()
+        # Grafana expects a response containing an array of annotation objects
+        # in the following format:
+        # [
+        #   {
+        #     annotation: annotation, // The original annotation sent from Grafana.
+        #     time: time, // Time since UNIX Epoch in milliseconds. (required)
+        #     title: title, // The title for the annotation tooltip. (required)
+        #     tags: tags, // Tags for the annotation. (optional)
+        #     text: text // Text for the annotation. (optional)
+        #   }
+        # ]
+
+        # One item in the response
+        self.assertEqual(len(resp), 1)
+
+        # All expected data fields are present
+        rsp = resp[0]
+        self.assertIn('annotation', rsp)
+        self.assertEqual(rsp['annotation'], data['annotation'])
+        self.assertIn('time', rsp)
+        self.assertIn('title', rsp)
+        self.assertEqual(rsp['title'], "Server #1") # Alias
+        self.assertIn('tags', rsp)
+        self.assertEqual(rsp['tags'], ["t1", "t2"]) # Tags
+        self.assertIn('text', rsp)
+        self.assertEqual(rsp['text'], "srv001: UNREACHABLE (HARD) - ")     # Live state
+
+        # Request some annotations
+        # 3- for one host only
+        # Grafana request for some annotations
+        data = {
+            u'range': {
+                u'from': range_from,
+                u'to': range_to,
+            },
+            u'annotation': {
+                # Request for livestate of hosts srv001 and srv002
+                u'query': u'livestate:whatever:{srv001,srv002}',
+            }
+        }
+        response = requests.post(self.endpoint + '/annotations',
+                                 json=data, headers=headers, auth=self.auth)
+        resp = response.json()
+        # One item in the response
+        self.assertEqual(len(resp), 2)
+
+        # All expected data fields are present
+        rsp = resp[0]
+        self.assertIn('annotation', rsp)
+        self.assertEqual(rsp['annotation'], data['annotation'])
+        self.assertIn('time', rsp)
+        self.assertIn('title', rsp)
+        self.assertEqual(rsp['title'], "Server #1") # Alias
+        self.assertIn('tags', rsp)
+        self.assertEqual(rsp['tags'], ["t1", "t2"]) # Tags
+        self.assertIn('text', rsp)
+        self.assertEqual(rsp['text'], "srv001: UNREACHABLE (HARD) - ")
+
+        rsp = resp[1]
+        self.assertIn('annotation', rsp)
+        self.assertEqual(rsp['annotation'], data['annotation'])
+        self.assertIn('time', rsp)
+        self.assertIn('title', rsp)
+        self.assertEqual(rsp['title'], "Server #2") # Alias
+        self.assertIn('tags', rsp)
+        self.assertEqual(rsp['tags'], ["t2"]) # Tags
+        self.assertIn('text', rsp)
+        self.assertEqual(rsp['text'], "srv002: UNREACHABLE (HARD) - ")
 
     def test_create_dashboard_panels_graphite(self):
         # pylint: disable=too-many-locals
