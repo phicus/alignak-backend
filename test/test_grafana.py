@@ -761,6 +761,96 @@ class TestGrafana(unittest2.TestCase):
         self.assertIn('text', rsp)
         self.assertEqual(rsp['text'], "srv002: UNREACHABLE (HARD) - ")
 
+    def test_grafana_searching(self):
+        """
+        Get availables metrics from data source
+
+        :return: None
+        """
+        headers = {'Content-Type': 'application/json'}
+
+        # Grafana request for available data:
+        data = {}
+        response = requests.post(self.endpoint + '/search',
+                                 json=data, headers=headers, auth=self.auth)
+        resp = response.json()
+        # Grafana expects a response containing an array of data names...
+        # [
+        # "hosts"
+        # ]
+
+        # One item in the response
+        self.assertEqual(len(resp), 1)
+
+        # All expected data fields are present
+        rsp = resp[0]
+        self.assertEqual(rsp, "hosts")
+
+    def test_grafana_query(self):
+        """
+        Get data from data source
+
+        :return: None
+        """
+        headers = {'Content-Type': 'application/json'}
+
+        # Time frame for the request - whatever, this endpoint do not car about the time frame!!!
+        now = datetime.utcnow()
+        range_to = now.strftime('%a, %d %b %Y %H:%M:%S GMT')
+        # One day in the past
+        past = now - timedelta(days=5)
+        range_from = past.strftime('%a, %d %b %Y %H:%M:%S GMT')
+
+        # Grafana request for available data:
+        #     {
+        #       "range": { "from": "2015-12-22T03:06:13.851Z", "to": "2015-12-22T06:48:24.137Z" },
+        #       "interval": "5s",
+        #       "targets": [
+        #         { "refId": "B", "target": "hosts" },
+        #         { "refId": "A", "target": "hosts" }
+        #       ],
+        #       "format": "json",
+        #       "maxDataPoints": 2495 //decided by the panel
+        #     }
+        data = {
+            # Ignored data...
+            u'range': {u'from': range_from, u'to': range_to},
+            u'interval': "5s",
+            u'format': "json",
+            u'maxDataPoints': 2495,
+            # Usefaul data:
+            "targets": [
+                {"refId": "A", "target": "hosts"}
+            ],
+        }
+        response = requests.post(self.endpoint + '/query',
+                                 json=data, headers=headers, auth=self.auth)
+        print("Response: %s" % response)
+        resp = response.json()
+        print("Response: %s" % resp)
+        # Grafana expects a response containing an array of data names...
+        # [
+        # "hosts"
+        # ]
+
+        # One item in the response
+        self.assertEqual(len(resp), 1)
+
+        # All expected data fields are present
+        rsp = resp[0]
+        self.assertIn('type', rsp)
+        self.assertEqual(rsp["type"], "table")
+
+        self.assertIn('columns', rsp)
+        self.assertEqual(len(rsp["columns"]), 6)
+        for column in rsp["columns"]:
+            self.assertIn('text', column)
+
+        self.assertIn('rows', rsp)
+        self.assertEqual(len(rsp["rows"]), 3)
+        for row in rsp["rows"]:
+            self.assertEqual(len(row), 6)
+
     def test_create_dashboard_panels_graphite(self):
         # pylint: disable=too-many-locals
         """

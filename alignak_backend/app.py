@@ -2238,6 +2238,145 @@ def cron_timeseries():
                 deleteitem_internal('timeseriesretention', False, False, **lookup)
 
 
+@app.route("/search", methods=['POST'])
+def grafana_search(engine='jsonify'):
+    # pylint: disable=too-many-locals
+    """
+    Request available metrics...
+
+    Return only hosts!
+
+    :return: See upper comment
+    :rtype: list
+    """
+    with app.test_request_context():
+        resp = []
+
+        resp.append("hosts")
+
+        if engine == 'jsonify':
+            return jsonify(resp)
+
+        return json.dumps(resp)
+
+
+@app.route("/query", methods=['POST'])
+def grafana_query(engine='jsonify'):
+    # pylint: disable=too-many-locals
+    """
+    Request object passed to datasource.query function:
+
+    {
+      "range": { "from": "2015-12-22T03:06:13.851Z", "to": "2015-12-22T06:48:24.137Z" },
+      "interval": "5s",
+      "targets": [
+        { "refId": "B", "target": "hosts" },
+        { "refId": "A", "target": "hosts" }
+      ],
+      "format": "json",
+      "maxDataPoints": 2495 //decided by the panel
+    }
+
+    Table response from datasource.query. An array of:
+
+    [
+      {
+        "type": "table",
+        "columns": [
+          {
+            "text": "Time",
+            "type": "time",
+            "sort": true,
+            "desc": true,
+          },
+          {
+            "text": "mean",
+          },
+          {
+            "text": "sum",
+          }
+        ],
+        "rows": [
+          [
+            1457425380000,
+            null,
+            null
+          ],
+          [
+            1457425370000,
+            1002.76215352,
+            1002.76215352
+          ],
+        ]
+      }
+    ]
+    :return: See upper comment
+    :rtype: list
+    """
+    posted_data = request.json
+    targets = None
+    try:
+        targets = posted_data.get("targets")
+        target = targets[0]
+        target = target.get("target")
+    except Exception as e:
+        abort(400, description='Bad format for posted data: %s' % str(e))
+
+    with app.test_request_context():
+        if target not in ['hosts']:
+            abort(400,
+                  description='Bad endpoint for search: %s. '
+                              'Only hosts are available.' % targets)
+
+        if target == 'hosts':
+            resp = [
+                {
+                    "type": "table",
+                    "columns": [
+                        {
+                            "text": "Time",
+                            "type": "time",
+                        },
+                        {
+                            "text": "Name",
+                            "type": "string",
+                            "sort": True,
+                            "desc": True
+                        },
+                        {
+                            "text": "State",
+                            "type": "string"
+                        },
+                        {
+                            "text": "State (id)",
+                            "type": "int"
+                        },
+                        {
+                            "text": "Output",
+                            "type": "string"
+                        },
+                        {
+                            "text": "Tags",
+                        }
+                    ],
+                    "rows": []
+                }
+            ]
+            host_db = current_app.data.driver.db['host']
+            hosts = host_db.find({})
+            for host in hosts:
+                item = [
+                    host['_updated'], "%s (%s)" % (host['alias'], host['name']),
+                    host['ls_state'], host['ls_state_id'], host['ls_output'], host['tags']
+                ]
+                resp[0]["rows"].append(item)
+
+        if engine == 'jsonify':
+            return jsonify(resp)
+
+        return json.dumps(resp)
+
+
 @app.route("/annotations", methods=['POST'])
 def grafana_annotations(engine='jsonify'):
     # pylint: disable=too-many-locals
@@ -2296,6 +2435,8 @@ def grafana_annotations(engine='jsonify'):
         resp = []
         hosts = []
         services = []
+
+        print("[grafana] annotations query: %s" % annotation_query)
 
         query = annotation_query.split(':')
         if len(query) < 3:
