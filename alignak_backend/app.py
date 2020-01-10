@@ -2154,7 +2154,7 @@ base_path = os.path.dirname(os.path.abspath(alignak_backend.__file__))
 app = Eve(
     settings=settings,
     validator=MyValidator,
-    auth=MyTokenAuth,
+    #auth=MyTokenAuth,
     static_folder=base_path
 )
 
@@ -2504,47 +2504,24 @@ if settings['JOBS']:
         scheduler.init_app(app)
         scheduler.start()
 
-
-@app.route("/login", methods=['POST'])
-def login_app():  # pylint: disable=inconsistent-return-statements
+@app.route("/all", methods=['GET'])
+def search_all():  # pylint: disable=inconsistent-return-statements
     """
-    Log in to backend
+    Damelo todo papi
     """
-    posted_data = None
-    if request.form:
-        posted_data = request.form
-    else:
-        if request.json:
-            posted_data = request.json
-    if not posted_data:
-        abort(401, description='No data provided in the login request')
 
-    if 'username' not in posted_data or 'password' not in posted_data:
-        abort(
-            401,
-            description='Missing credentials in posted data (username and password are mandatory)'
-        )
-    elif not posted_data['username'] or not posted_data['password']:
-        abort(
-            401,
-            description='Username and password must be provided as credentials for login.'
-        )
-    else:
-        _users = app.data.driver.db['user']
-        user = _users.find_one({'name': posted_data['username']})
-        if user:
-            if check_password_hash(user['password'], posted_data['password']):
-                if 'action' in posted_data:
-                    if posted_data['action'] == 'generate' or not user['token']:
-                        token = generate_token()
-                        _users.update({'_id': user['_id']}, {'$set': {'token': token}})
-                        return jsonify({'token': token})
-                elif not user['token']:
-                    token = generate_token()
-                    _users.update({'_id': user['_id']}, {'$set': {'token': token}})
-                    return jsonify({'token': token})
-                return jsonify({'token': user['token']})
-        abort(401, description='Please provide proper credentials')
+    search = request.args.get('search') or "{}"
+
+    mongo = app.data.driver.db
+    host = mongo["host"]
+
+    from bson import json_util
+
+    result = [ h for h in host.find(json.loads(search)) ]
+
+
+
+    return  json.dumps(result, default=json_util.default)
 
 
 @app.route("/logout", methods=['POST'])
