@@ -2154,7 +2154,7 @@ base_path = os.path.dirname(os.path.abspath(alignak_backend.__file__))
 app = Eve(
     settings=settings,
     validator=MyValidator,
-    #auth=MyTokenAuth,
+    auth=MyTokenAuth,
     static_folder=base_path
 )
 
@@ -2504,24 +2504,20 @@ if settings['JOBS']:
         scheduler.init_app(app)
         scheduler.start()
 
+
 @app.route("/all", methods=['GET'])
 def search_all():  # pylint: disable=inconsistent-return-statements
-    """
-    Damelo todo papi
-    """
-
-    search = request.args.get('search') or "{}"
-
-    mongo = app.data.driver.db
-    host = mongo["host"]
-
     from bson import json_util
+    from alignak_backend.finder import all_hosts
+    search = request.args.get('search') or ""
+    sort = request.args.get('sort') or None
+    pagination = {
+        'offset': request.args.get('offset') or 0,
+        'limit': request.args.get('limit') or 10
+    }
 
-    result = [ h for h in host.find(json.loads(search)) ]
-
-
-
-    return  json.dumps(result, default=json_util.default)
+    debug = request.args.get('debug') or False
+    return json.dumps(all_hosts(search, sort, pagination, debug), default=json_util.default)
 
 
 @app.route("/logout", methods=['POST'])

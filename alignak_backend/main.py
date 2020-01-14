@@ -25,7 +25,8 @@ def main():  # pragma: no cover - tested but not covered
         print("--------------------------------------------------------------------------------")
         print("%s, listening on %s" % (manifest['name'], url))
         print("--------------------------------------------------------------------------------")
-        app.run(host=host, port=port, debug=app.config.get('DEBUG', False))
+        # app.run(host=host, port=port, debug=app.config.get('DEBUG', False))
+        app.run(host=host, port=port, debug=True)
     except Exception as e:
         print("Application run failed, exception: %s / %s" % (type(e), str(e)))
 
