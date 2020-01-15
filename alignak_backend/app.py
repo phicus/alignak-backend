@@ -2512,16 +2512,61 @@ def search_all():  # pylint: disable=inconsistent-return-statements
     token = request.headers.get('Authorization') or None
     user = current_app.data.driver.db['user'].find_one({'token': token})
 
-    print("user: {}".format(user))
-    search = request.args.get('search') or ""
-    sort = request.args.get('sort') or None
-    pagination = {
-        'offset': request.args.get('offset') or 0,
-        'limit': request.args.get('limit') or 10
-    }
+    if user:
+        print("user: {}".format(user))
+        search = request.args.get('search') or ""
+        sort = request.args.get('sort') or None
+        pagination = {
+            'offset': request.args.get('offset') or 0,
+            'limit': request.args.get('limit') or 10
+        }
 
-    debug = request.args.get('debug') or False
-    return json.dumps(all_hosts(search, sort, pagination, debug), default=json_util.default)
+        debug = request.args.get('debug') or False
+        return json.dumps(all_hosts(search, sort, pagination, user, debug), default=json_util.default)
+    else:
+        abort(401, description='Please provide proper credentials')
+
+
+@app.route("/login", methods=['POST'])
+def login_app():
+    """
+    Log in to backend
+    """
+    posted_data = None
+    if request.form:
+        posted_data = request.form
+    else:
+        if request.json:
+            posted_data = request.json
+    if not posted_data:
+        abort(401, description='No data provided in the login request')
+
+    if 'username' not in posted_data or 'password' not in posted_data:
+        abort(
+            401,
+            description='Missing credentials in posted data (username and password are mandatory)'
+        )
+    elif not posted_data['username'] or not posted_data['password']:
+        abort(
+            401,
+            description='Username and password must be provided as credentials for login.'
+        )
+    else:
+        _users = app.data.driver.db['user']
+        user = _users.find_one({'name': posted_data['username']})
+        if user:
+            if check_password_hash(user['password'], posted_data['password']):
+                if 'action' in posted_data:
+                    if posted_data['action'] == 'generate' or not user['token']:
+                        token = generate_token()
+                        _users.update({'_id': user['_id']}, {'$set': {'token': token}})
+                        return jsonify({'token': token})
+                elif not user['token']:
+                    token = generate_token()
+                    _users.update({'_id': user['_id']}, {'$set': {'token': token}})
+                    return jsonify({'token': token})
+                return jsonify({'token': user['token']})
+        abort(401, description='Please provide proper credentials')
 
 
 @app.route("/logout", methods=['POST'])

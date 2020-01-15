@@ -24,6 +24,7 @@
 import re
 import json
 from alignak_backend.app import app
+from bson.objectid import ObjectId
 
 
 def is_int(value):
@@ -209,8 +210,11 @@ def sort_and_paginate(pipeline, sort, pagination):
     return pipeline
 
 
-def get_pipeline(search_dict, sort, pagination):
+def get_pipeline(realm, search_dict, sort, pagination):
     pipeline = join_tables([])
+    pipeline.append({"$match": {
+        "_realm": ObjectId(realm)
+    }})
     for token in search_dict:
         for value in search_dict[token]:
             if token == "is":
@@ -233,9 +237,11 @@ def get_pipeline(search_dict, sort, pagination):
     return sort_and_paginate(pipeline, sort, pagination)
 
 
-def all_hosts(search, sort, pagination, debug=False):
+def all_hosts(search, sort, pagination, user, debug=False):
     mongo = app.data.driver.db
     search_dict = {}
+    realm = user['_realm']
+    print("RealM: {}".format(realm))
 
     search_tokens = search.split(' ')
     for token in search_tokens:
@@ -250,7 +256,7 @@ def all_hosts(search, sort, pagination, debug=False):
             search_dict['strings'].append(token)
 
     host = mongo["host"]
-    pipeline = get_pipeline(search_dict, sort, pagination)
+    pipeline = get_pipeline(realm, search_dict, sort, pagination)
 
     if debug is not False:
         return {
