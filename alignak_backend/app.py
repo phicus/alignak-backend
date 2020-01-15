@@ -2509,6 +2509,10 @@ if settings['JOBS']:
 def search_all():  # pylint: disable=inconsistent-return-statements
     from bson import json_util
     from alignak_backend.finder import all_hosts
+    token = request.headers.get('Authorization') or None
+    user = current_app.data.driver.db['user'].find_one({'token': token})
+
+    print("user: {}".format(user))
     search = request.args.get('search') or ""
     sort = request.args.get('sort') or None
     pagination = {

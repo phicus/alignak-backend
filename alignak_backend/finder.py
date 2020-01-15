@@ -146,7 +146,7 @@ def get_token_bi(value):
 
 
 def get_token_strings(value):
-    if value is "":
+    if value == "":
         return None
     regx = re.compile(value, re.IGNORECASE)
     return {
@@ -167,9 +167,14 @@ def get_token_strings(value):
 
 
 def sort_and_paginate(pipeline, sort, pagination):
+    field = '_id'
+    order = 1
+    offset = int(pagination['offset'])
+    limit = int(pagination['limit'])
+
     if sort is not None:
-        asc, field = re.match("([-]?)(\\w)", sort).groups()
-        pipeline.append({'$sort': {field: -1 if asc == '-' else 1}})
+        order, field = re.match("([-]?)(\\w+)", sort).groups()
+        pipeline.append({'$sort': {field: -1 if order == '-' else 1}})
 
     pipeline.append({
         '$group': {
@@ -180,16 +185,25 @@ def sort_and_paginate(pipeline, sort, pagination):
     })
     pipeline.append({
         '$project': {
+            '_id': 0,
             'count': 1,
             'offset': 1,
             'limit': 1,
-            'rows': {'$slice': ['$results', int(pagination['offset']), int(pagination['limit'])]}
+            'results': {'$slice': ['$results', offset, limit]}
         }
     })
     pipeline.append({
         '$addFields': {
-            'offset': int(pagination['offset']),
-            'limit': int(pagination['limit'])
+            'pagination': {
+                'offset': offset,
+                'limit': limit,
+                # 'prev': None if offset <= 0 or offset - limit < 0 else offset - limit,
+                # 'next': offset + limit if offset <=
+            },
+            'sort': {
+                'field': field,
+                'order': 'DESC' if order == '-' else 'ASC'
+            },
         }
     })
     return pipeline
@@ -246,4 +260,9 @@ def all_hosts(search, sort, pagination, debug=False):
             'search_dict': search_dict
         }
     else:
-        return [h for h in host.aggregate(pipeline)]
+        from datetime import datetime
+        start = datetime.now()
+        result = list(host.aggregate(pipeline, allowDiskUse=True))[0]
+        elapsed = datetime.now() - start
+        print('Mongo aggregation execution time elapsed (hh:mm:ss.ms): {}'.format(elapsed))
+        return result
