@@ -73,6 +73,12 @@ def join_tables(pipeline):
         }
     })
     pipeline.append({
+        '$unwind': {
+            'path': '$services',
+            'preserveNullAndEmptyArrays': True
+        }
+    })
+    pipeline.append({
         '$addFields': {
             'customs': {
                 '$objectToArray': '$customs'
@@ -106,8 +112,8 @@ def get_token_is(value):
 
 def get_token_isnot(value):
     token_isnot = {
-        "UP": {"services.ls_state_id": {"$ne": 0}},
-        "OK": {"ls_state_id": {"$ne": 0}},
+        "UP": {"$or": [{"services.ls_state_id": {"$ne": 0}}, {"ls_state_id": {"$ne": 0}}]},
+        "OK": {"$or": [{"services.ls_state_id": {"$ne": 0}}, {"ls_state_id": {"$ne": 0}}]},
         "PENDING": {"$or": [{"ls_state": {"$ne": "PENDING"}}, {"services.ls_state": {"$ne": "PENDING"}}]},
         "ACK": {"$or": [{"ls_acknowledged": False}, {"services.ls_acknowledged": False}]},
         "DOWNTIME": {"$or": [{"ls_downtimed": False}, {"services.ls_downtimed": False}]},
@@ -175,7 +181,13 @@ def sort_and_paginate(pipeline, sort, pagination):
 
     if sort is not None:
         order, field = re.match("([-]?)(\\w+)", sort).groups()
-        pipeline.append({'$sort': {field: -1 if order == '-' else 1}})
+        pipeline.append({
+            '$sort': {
+                field: -1 if order == '-' else 1,
+                'ls_state_id': -1,
+                'services.ls_state_id': -1,
+            }
+        })
 
     pipeline.append({
         '$group': {
@@ -188,8 +200,6 @@ def sort_and_paginate(pipeline, sort, pagination):
         '$project': {
             '_id': 0,
             'count': 1,
-            'offset': 1,
-            'limit': 1,
             'results': {'$slice': ['$results', offset, limit]}
         }
     })
@@ -212,8 +222,11 @@ def sort_and_paginate(pipeline, sort, pagination):
 
 def get_pipeline(realm, search_dict, sort, pagination):
     pipeline = join_tables([])
+
     pipeline.append({"$match": {
-        "_realm": ObjectId(realm)
+        "_realm": ObjectId(realm),
+        "name": {"$ne": "_dummy"},
+        "_is_template": False
     }})
     for token in search_dict:
         for value in search_dict[token]:
@@ -268,7 +281,10 @@ def all_hosts(search, sort, pagination, user, debug=False):
     else:
         from datetime import datetime
         start = datetime.now()
-        result = list(host.aggregate(pipeline, allowDiskUse=True))[0]
+        aggregation = host.aggregate(pipeline, allowDiskUse=True)
+        print('==> Aggregation: {}'.format(aggregation))
+        result = list(aggregation)[0]
+        # result = list(aggregation)
         elapsed = datetime.now() - start
-        print('Mongo aggregation execution time elapsed (hh:mm:ss.ms): {}'.format(elapsed))
+        print('==> Mongo aggregation execution time elapsed (hh:mm:ss.ms): {}'.format(elapsed))
         return result
