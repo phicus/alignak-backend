@@ -284,6 +284,8 @@ def all_hosts(search, sort, pagination, user, debug=False):
         aggregation = host.aggregate(pipeline, allowDiskUse=True)
         print('==> Aggregation: {}'.format(aggregation))
         result = list(aggregation)[0]
+        result['hosts'] = host.count()
+        result['services'] = mongo['service'].count()
         # result = list(aggregation)
         elapsed = datetime.now() - start
         print('==> Mongo aggregation execution time elapsed (hh:mm:ss.ms): {}'.format(elapsed))
