@@ -2508,6 +2508,7 @@ if settings['JOBS']:
 @app.route("/all", methods=['GET'])
 def search_all():  # pylint: disable=inconsistent-return-statements
     from bson import json_util
+    from flask import Response
     from alignak_backend.finder import all_hosts
     token = request.headers.get('Authorization') or None
     user = current_app.data.driver.db['user'].find_one({'token': token})
@@ -2522,7 +2523,13 @@ def search_all():  # pylint: disable=inconsistent-return-statements
         }
 
         debug = request.args.get('debug') or False
-        return json.dumps(all_hosts(search, sort, pagination, user, debug), default=json_util.default)
+        # return json.dumps(all_hosts(search, sort, pagination, user, debug), default=json_util.default)
+        return Response(
+            json.dumps(all_hosts(search, sort, pagination, user, debug), default=json_util.default),
+            headers={'Access-Control-Allow-Origin': '*'},
+            # status=200,  ## default value
+            mimetype='application/json'
+        )
     else:
         abort(401, description='Please provide proper credentials')
 

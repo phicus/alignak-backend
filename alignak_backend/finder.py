@@ -25,6 +25,7 @@ import re
 import json
 from alignak_backend.app import app
 from bson.objectid import ObjectId
+from datetime import datetime
 
 
 def is_int(value):
@@ -254,7 +255,23 @@ def all_hosts(search, sort, pagination, user, debug=False):
     mongo = app.data.driver.db
     search_dict = {}
     realm = user['_realm']
-    print("RealM: {}".format(realm))
+
+    order, field = '', '_id'
+    if sort is not None:
+        order, field = re.match("([-]?)(\\w+)", sort).groups()
+    default_response = {
+        'count': 0,
+        'results': [],
+        'pagination': {
+            'offset': int(pagination['offset']),
+            'limit': int(pagination['limit'])
+        },
+        'sort': {
+            'field': field,
+            'order': 'DESC' if order == '-' else 'ASC'
+        },
+    }
+    app.logger.info("\n\n\n==> RealM: {}\n\n\n".format(realm))
 
     search_tokens = search.split(' ')
     for token in search_tokens:
@@ -271,22 +288,24 @@ def all_hosts(search, sort, pagination, user, debug=False):
     host = mongo["host"]
     pipeline = get_pipeline(realm, search_dict, sort, pagination)
 
-    if debug is not False:
-        return {
+    start = datetime.now()
+    aggregation = host.aggregate(pipeline, allowDiskUse=True)
+    agregation_list = list(aggregation)
+    app.logger.info('\n\n\n==> Aggregation: {}\n\n\n'.format(agregation_list))
+    result = agregation_list[0] if len(agregation_list) > 0 else default_response
+    result['hosts'] = host.find({"name": {"$ne": "_dummy"}, "_is_template": False}).count()
+    result['services'] = mongo['service'].count()
+    elapsed = datetime.now() - start
+    app.logger.info('\n\n\n==> Mongo aggregation execution time elapsed (hh:mm:ss.ms): {}\n\n\n'.format(elapsed))
+
+    if debug:
+        debug = {
             'aggregation': pipeline,
             'search': search,
             'search_tokens': search_tokens,
-            'search_dict': search_dict
+            'search_dict': search_dict,
+            'execution_time': str(elapsed)
         }
-    else:
-        from datetime import datetime
-        start = datetime.now()
-        aggregation = host.aggregate(pipeline, allowDiskUse=True)
-        print('==> Aggregation: {}'.format(aggregation))
-        result = list(aggregation)[0]
-        result['hosts'] = host.count()
-        result['services'] = mongo['service'].count()
-        # result = list(aggregation)
-        elapsed = datetime.now() - start
-        print('==> Mongo aggregation execution time elapsed (hh:mm:ss.ms): {}'.format(elapsed))
-        return result
+        result['debug'] = debug
+
+    return result
