@@ -271,7 +271,7 @@ def all_hosts(search, sort, pagination, user, debug=False):
             'order': 'DESC' if order == '-' else 'ASC'
         },
     }
-    app.logger.info("\n\n\n==> RealM: {}\n\n\n".format(realm))
+    # app.logger.info("\n\n\n==> RealM: {}\n\n\n".format(realm))
 
     search_tokens = search.split(' ')
     for token in search_tokens:
@@ -291,7 +291,7 @@ def all_hosts(search, sort, pagination, user, debug=False):
     start = datetime.now()
     aggregation = host.aggregate(pipeline, allowDiskUse=True)
     agregation_list = list(aggregation)
-    app.logger.info('\n\n\n==> Aggregation: {}\n\n\n'.format(agregation_list))
+    app.logger.debug('\n\n\n==> Aggregation: {}\n\n\n'.format(agregation_list))
     result = agregation_list[0] if len(agregation_list) > 0 else default_response
     result['hosts'] = host.find({"name": {"$ne": "_dummy"}, "_is_template": False}).count()
     result['services'] = mongo['service'].count()
