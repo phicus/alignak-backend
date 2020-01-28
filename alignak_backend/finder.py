@@ -114,11 +114,13 @@ def get_token_is(value):
 def get_token_isnot(value):
     token_isnot = {
         # "UP": {"$or": [{"services.ls_state_id": {"$ne": 0}}, {"ls_state_id": {"$ne": 0}}]},
-        "UP": {"$and": [{"$and": [{"services": {"$ne": None}}, {"services.ls_state_id": {"$ne": 0}}]},
-                        {"ls_state_id": {"$ne": 0}}]},
+        "UP": {
+            "$or": [{"$or": [{"services": None}, {"services.ls_state_id": {"$ne": 0}}]}, {"ls_state_id": {"$ne": 0}}]
+        },
         # "OK": {"$or": [{"services.ls_state_id": {"$ne": 0}}, {"ls_state_id": {"$ne": 0}}]},
-        "OK": {"$and": [{"$and": [{"services": {"$ne": None}}, {"services.ls_state_id": {"$ne": 0}}]},
-                        {"ls_state_id": {"$ne": 0}}]},
+        "OK": {
+            "$or": [{"$or": [{"services": None}, {"services.ls_state_id": {"$ne": 0}}]}, {"ls_state_id": {"$ne": 0}}]
+        },
         "PENDING": {"$or": [{"ls_state": {"$ne": "PENDING"}}, {"services.ls_state": {"$ne": "PENDING"}}]},
         "ACK": {"$or": [{"ls_acknowledged": False}, {"services.ls_acknowledged": False}]},
         "DOWNTIME": {"$or": [{"ls_downtimed": False}, {"services.ls_downtimed": False}]},
