@@ -113,7 +113,7 @@ setup(
     include_package_data=True,
 
     # Where to install distributed files
-    data_files = data_files,
+    data_files=data_files,
 
     # Unzip Egg
     zip_safe=False,

@@ -79,6 +79,81 @@ def join_tables(pipeline):
             'preserveNullAndEmptyArrays': True
         }
     })
+    # Todo check if return correct values
+    pipeline.append({
+        '$lookup': {
+            'from': 'servicegroup',
+            'localField': '_id',
+            'foreignField': 'services',
+            'as': 'servicegroup'
+        }
+    })
+    pipeline.append({
+        '$unwind': {
+            'path': '$servicegroup',
+            'preserveNullAndEmptyArrays': True
+        }
+    })
+    # Todo check if really needs in all cases
+    pipeline.append({
+        '$lookup': {
+            'from': 'user',
+            'localField': '_id',
+            'foreignField': 'users',
+            'as': 'contacts'
+        }
+    })
+    pipeline.append({
+        '$unwind': {
+            'path': '$contacts',
+            'preserveNullAndEmptyArrays': True
+        }
+    })
+    # Todo check if really needs in all cases
+    pipeline.append({
+        '$lookup': {
+            'from': 'usergroup',
+            'localField': '_id',
+            'foreignField': 'usergroups',
+            'as': 'contactgroups'
+        }
+    })
+    pipeline.append({
+        '$unwind': {
+            'path': '$contactgroups',
+            'preserveNullAndEmptyArrays': True
+        }
+    })
+    # Todo check if really needs in all cases
+    pipeline.append({
+        '$lookup': {
+            'from': 'user',
+            'localField': '_id',
+            'foreignField': 'services.users',
+            'as': 'services_contacts'
+        }
+    })
+    pipeline.append({
+        '$unwind': {
+            'path': '$services_contacts',
+            'preserveNullAndEmptyArrays': True
+        }
+    })
+    # Todo check if really needs in all cases
+    pipeline.append({
+        '$lookup': {
+            'from': 'usergroup',
+            'localField': '_id',
+            'foreignField': 'services.usergroups',
+            'as': 'services_contactgroups'
+        }
+    })
+    pipeline.append({
+        '$unwind': {
+            'path': '$services_contactgroups',
+            'preserveNullAndEmptyArrays': True
+        }
+    })
     pipeline.append({
         '$addFields': {
             'customs': {
@@ -86,7 +161,6 @@ def join_tables(pipeline):
             }
         }
     })
-    # TODO: Add Services customs
     pipeline.append({
         '$addFields': {
             'services_customs': {
@@ -146,6 +220,7 @@ def sort_and_paginate(pipeline, sort, pagination):
 
 
 def get_token_is(value, search_type):
+    value = value.upper()
     if search_type == 'host':
         token_is = {
             "UP": {"ls_state_id": 0},
@@ -189,6 +264,7 @@ def get_token_is(value, search_type):
 
 
 def get_token_isnot(value, search_type):
+    value = value.upper()
     if search_type == 'host':
         token_isnot = {
             "UP": {"ls_state_id": {"$ne": 0}},
@@ -265,8 +341,8 @@ def get_token_isnot(value, search_type):
                     {"ls_state": {"$ne": "PENDING"}}
                 ]
             },
-            "ACK": {
-                "$or": [
+            "ACK": {    # Host.ls_acknowledged = false / Host.services.ls_acknowledged = true
+                "$and": [
                     {
                         "$or": [
                             {"services": None},
@@ -277,7 +353,7 @@ def get_token_isnot(value, search_type):
                 ]
             },
             "DOWNTIME": {
-                "$or": [
+                "$and": [
                     {
                         "$or": [
                             {"services": None},
@@ -363,104 +439,405 @@ def get_token_bi(value, search_type):
     return response
 
 
-# def get_token_name(value, search_type):
-#     return None
-#
-#
-# def get_token_host(value, search_type):
-#     return None
-#
-#
-# def get_token_service(value, search_type):
-#     return None
-#
-#
-# def get_token_contact(value, search_type):
-#     return None
-#
-#
-# def get_token_hgroup(value, search_type):
-#     return None
-#
-#
-# def get_token_sgroup(value, search_type):
-#     return None
-#
-#
-# def get_token_cgroup(value, search_type):
-#     return None
-#
-#
-# def get_token_realm(value, search_type):
-#     return None
-#
-#
-# def get_token_htag(value, search_type):
-#     return None
-#
-#
-# def get_token_stag(value, search_type):
-#     return None
-#
-#
-# def get_token_ctag(value, search_type):
-#     return None
-#
-#
-# def get_token_duration(value, search_type):
-#     return None
-#
-#
-# def get_token_tech(value, search_type):
-#     return None
-#
-#
-# def get_token_perf(value, search_type):
-#     return None
-#
-#
-# def get_token_reg(value, search_type):
-#     return None
-#
-#
-# def get_token_regstate(value, search_type):
-#     return None
-#
-#
-# def get_token_loc(value, search_type):
-#     return None
-#
-#
-# def get_token_vendor(value, search_type):
-#     return None
-#
-#
-# def get_token_model(value, search_type):
-#     return None
-#
-#
-# def get_token_city(value, search_type):
-#     return None
-#
-#
-# def get_token_isaccess(value, search_type):
-#     return None
-#
-#
-# def get_token_his(value, search_type):
-#     return None
-#
-#
-# def get_token_ack(value, search_type):
-#     return None
-#
-#
-# def get_token_downtime(value, search_type):
-#     return None
-#
-#
-# def get_token_crit(value, search_type):
-#     return None
+def get_token_name(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    if search_type == 'host':
+        return {
+            "$or": [
+                {"alias": regx},
+                {"display_name": regx},
+                {"name": regx},
+            ]
+        }
+    elif search_type == 'service':
+        return {
+            "$or": [
+                {"services.name": regx},
+                {"services.alias": regx},
+            ]
+        }
+    else:
+        return {
+            "$or": [
+                {"alias": regx},
+                {"display_name": regx},
+                {"name": regx},
+                {"services.name": regx},
+                {"services.alias": regx},
+            ]
+        }
+
+
+def get_token_host(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$or": [
+            {"alias": regx},
+            {"display_name": regx},
+            {"name": regx},
+        ]
+    }
+
+
+def get_token_service(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$or": [
+            {"services.name": regx},
+            {"services.alias": regx},
+        ]
+    }
+
+
+def get_token_contact(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$or": [
+            {"contacts.name": regx},
+            {"contacts.alias": regx},
+        ]
+    }
+
+
+def get_token_hgroup(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$or": [
+            {"hostgroup.name": regx},
+            {"hostgroup.alias": regx},
+        ]
+    }
+
+
+def get_token_sgroup(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$or": [
+            {"servicegroup.name": regx},
+            {"servicegroup.alias": regx},
+        ]
+    }
+
+
+def get_token_cgroup(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    if search_type == 'host':
+        return {
+            "$or": [
+                {"contactgroups.name": regx},
+                {"contactgroups.alias": regx},
+            ]
+        }
+    elif search_type == 'service':
+        return {
+            "$or": [
+                {"services_contactgroups.name": regx},
+                {"services_contactgroups.alias": regx},
+            ]
+        }
+    else:
+        return {
+            "$or": [
+                {"contactgroups.name": regx},
+                {"contactgroups.alias": regx},
+                {"services_contactgroups.name": regx},
+                {"services_contactgroups.alias": regx},
+            ]
+        }
+
+
+def get_token_realm(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    if search_type == 'host':
+        return {
+            "$or": [
+                {"realm.name": regx},
+                {"realm.alias": regx},
+            ]
+        }
+    elif search_type == 'service':
+        return {
+            "$or": [
+                {"services.realm.name": regx},
+                {"services.realm.alias": regx},
+            ]
+        }
+    else:
+        return {
+            "$or": [
+                {"realm.name": regx},
+                {"realm.alias": regx},
+                {"services.realm.name": regx},
+                {"services.realm.alias": regx},
+            ]
+        }
+
+
+def get_token_htag(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$or": [
+            {"tags": regx},
+        ]
+    }
+
+
+def get_token_stag(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$or": [
+            {"services.tags": regx},
+        ]
+    }
+
+
+def get_token_ctag(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    if search_type == 'host':
+        return {
+            "$or": [
+                {"contacts.tags": regx},
+            ]
+        }
+    elif search_type == 'service':
+        return {
+            "$or": [
+                {"services_contacts.tags": regx},
+            ]
+        }
+    else:
+        return {
+            "$or": [
+                {"contacts.tags": regx},
+                {"services_contacts.tags": regx},
+            ]
+        }
+
+
+def get_token_duration(value, search_type):
+    seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+    mongo_comparation_operators = {
+        ">": "$gt", ">=": "$gte", "=>": "$gte",
+        "<": "$lt", "<=": "$lte", "=<": "$lte",
+        "=": "$eq", "==": "$eq",
+    }
+    operator, value = re.match("([=><]{0,2})(\\d)", value).groups()
+    if value == "":
+        return None
+
+    duration = time.time() - (int(value[0:-1]) * seconds_per_unit[value[-1]])
+    if search_type == 'host':
+        return {
+            "$or": [
+                {"ls_last_state_changed": {mongo_comparation_operators[operator]: duration}},
+            ]
+        }
+    elif search_type == 'service':
+        return {
+            "$or": [
+                {"services.ls_last_state_changed": {mongo_comparation_operators[operator]: duration}},
+            ]
+        }
+    else:
+        return {
+            "$or": [
+                {"ls_last_state_changed": {mongo_comparation_operators[operator]: duration}},
+                {"services.ls_last_state_changed": {mongo_comparation_operators[operator]: duration}},
+            ]
+        }
+
+
+def get_token_tech(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$and": [
+            {"customs.k": '_TECH'},
+            {"customs.v": regx},
+        ]
+    }
+
+
+def get_token_perf(value, search_type):
+    mongo_comparation_operators = {
+        ">": "$gt", ">=": "$gte", "=>": "$gte",
+        "<": "$lt", "<=": "$lte", "=<": "$lte",
+        "=": "$eq", "==": "$eq",
+    }
+    perf, operator, value = re.match("([\\w_]+)([=><]{0,2})(\\d)", value).groups()
+    if value == "":
+        return None
+    if search_type == 'host':
+        return {
+            "$or": [
+                {"ls_perf_data": {mongo_comparation_operators[operator]: value}},
+            ]
+        }
+    elif search_type == 'service':
+        return {
+            "$or": [
+                {"services.ls_perf_data": {mongo_comparation_operators[operator]: value}},
+            ]
+        }
+    else:
+        return {
+            "$or": [
+                {"ls_perf_data": {mongo_comparation_operators[operator]: value}},
+                {"services.ls_perf_data": {mongo_comparation_operators[operator]: value}},
+            ]
+        }
+
+
+def get_token_reg(value, search_type):
+    # if i.__class__.my_type == 'service':
+    #     l2 = i.host.cpe_registration_tags.split(',')
+    # elif i.__class__.my_type == 'host':
+    #     l2 = i.cpe_registration_tags.split(',')
+    # else:
+    #     l2 = []
+    return None
+
+
+def get_token_regstate(value, search_type):
+    # if i.__class__.my_type == 'service':
+    #     l2 = i.host.cpe_registration_state
+    # elif i.__class__.my_type == 'host':
+    #     l2 = i.cpe_registration_state
+    # else:
+    #     l2 = ''
+    return None
+
+
+def get_token_loc(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$and": [
+            {"customs.k": '_LOCATION'},
+            {"customs.v": regx},
+        ]
+    }
+
+
+def get_token_vendor(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$and": [
+            {"customs.k": '_VENDOR'},
+            {"customs.v": regx},
+        ]
+    }
+
+
+def get_token_model(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$and": [
+            {
+                "$or": [
+                    {"customs.k": '_MODEL'},
+                    {"customs.k": '_CPE_MODEL'},
+                ]
+            },
+            {"customs.v": regx},
+        ]
+    }
+
+
+def get_token_city(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$and": [
+            {"customs.k": '_CUSTOMER_CITY'},
+            {"customs.v": regx},
+        ]
+    }
+
+
+def get_token_isaccess(value, search_type):
+    if value in ('yes', '1'):
+        value = '1'
+    elif value in ('no', '0'):
+        value = '0'
+    else:
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$and": [
+            {"customs.k": '_ACCESS'},
+            {"customs.v": regx},
+        ]
+    }
+
+
+def get_token_his(value, search_type):
+    if value == "":
+        return None
+    regx = re.compile(value, re.IGNORECASE)
+    return {
+        "$or": [
+            {"ls_state_id": int(value)},
+            {"ls_state": value.upper()},
+        ]
+    }
+
+
+def get_token_ack(value, search_type):
+    if value in ("false", "no"):
+        return get_token_isnot("ack", search_type)
+    elif value in ("true", "yes"):
+        return get_token_is("ack", search_type)
+    else:
+        return get_token_is("ack", search_type)
+
+
+def get_token_downtime(value, search_type):
+    if value in ("false", "no"):
+        return get_token_isnot("downtime", search_type)
+    elif value in ("true", "yes"):
+        return get_token_is("downtime", search_type)
+    else:
+        return get_token_is("downtime", search_type)
+
+
+def get_token_crit(value, search_type):
+    # if value in ("false", "no"):
+    #     return get_token_isnot("critical", search_type)
+    # elif value in ("true", "yes"):
+    #     return get_token_is("critical", search_type)
+    # else:
+    #     return get_token_is("critical", search_type)
+    return None
 
 
 def get_token_strings(value, search_type):
@@ -486,6 +863,7 @@ def get_token_strings(value, search_type):
         return {
             "$or": [
                 {"services.name": regx},
+                {"services.alias": regx},
                 {"services_customs.v": regx},
             ]
         }
@@ -503,6 +881,7 @@ def get_token_strings(value, search_type):
                 {"notes": regx},
                 {"realm.name": regx},
                 {"services.name": regx},
+                {"services.alias": regx},
                 {"services_customs.v": regx},
             ]
         }
@@ -533,107 +912,107 @@ def get_pipeline(realm, search_dict, sort, pagination):
                 response = get_token_bi(value, search_type)
                 if response is not None:
                     pipeline.append({"$match": response})
-            # elif token == "name":
-            #     response = get_token_name(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif (token == "h" or token == "host") and value != "all":
-            #     response = get_token_host(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif (token == "s" or token == "service") and value != "all":
-            #     response = get_token_service(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif (token == "c" or token == "contact") and value != "all":
-            #     response = get_token_contact(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif (token == "hg" or token == "hgroup") and value != "all":
-            #     response = get_token_hgroup(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif (token == "sg" or token == "sgroup") and value != "all":
-            #     response = get_token_sgroup(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif (token == "cg" or token == "cgroup") and value != "all":
-            #     response = get_token_cgroup(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "realm":
-            #     response = get_token_realm(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "htag" and value != "all":
-            #     response = get_token_htag(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "stag" and value != "all":
-            #     response = get_token_stag(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "ctag" and value != "all":
-            #     response = get_token_ctag(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "duration":
-            #     response = get_token_duration(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "tech":
-            #     response = get_token_tech(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "perf":
-            #     response = get_token_perf(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "reg":
-            #     response = get_token_reg(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "regstate":
-            #     response = get_token_regstate(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "loc":
-            #     response = get_token_loc(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "vendor":
-            #     response = get_token_vendor(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "model":
-            #     response = get_token_model(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "city":
-            #     response = get_token_city(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "isaccess":
-            #     response = get_token_isaccess(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "his":
-            #     response = get_token_his(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "ack":
-            #     response = get_token_ack(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "downtime":
-            #     response = get_token_downtime(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            # elif token == "crit" or token == "critical":
-            #     response = get_token_crit(value, search_type)
-            #     if response is not None:
-            #         pipeline.append({"$match": response})
-            elif token == "strings":
+            elif token == "name":
+                response = get_token_name(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif (token == "h" or token == "host") and value != "all":
+                response = get_token_host(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif (token == "s" or token == "service") and value != "all":
+                response = get_token_service(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif (token == "c" or token == "contact") and value != "all":
+                response = get_token_contact(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif (token == "hg" or token == "hgroup") and value != "all":
+                response = get_token_hgroup(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif (token == "sg" or token == "sgroup") and value != "all":
+                response = get_token_sgroup(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif (token == "cg" or token == "cgroup") and value != "all":
+                response = get_token_cgroup(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "realm":
+                response = get_token_realm(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "htag" and value != "all":
+                response = get_token_htag(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "stag" and value != "all":
+                response = get_token_stag(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "ctag" and value != "all":
+                response = get_token_ctag(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "duration":
+                response = get_token_duration(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "tech":
+                response = get_token_tech(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "perf":
+                response = get_token_perf(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "reg":
+                response = get_token_reg(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "regstate":
+                response = get_token_regstate(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "loc":
+                response = get_token_loc(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "vendor":
+                response = get_token_vendor(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "model":
+                response = get_token_model(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "city":
+                response = get_token_city(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "isaccess":
+                response = get_token_isaccess(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "his":
+                response = get_token_his(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "ack":
+                response = get_token_ack(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "downtime":
+                response = get_token_downtime(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "crit" or token == "critical":
+                response = get_token_crit(value, search_type)
+                if response is not None:
+                    pipeline.append({"$match": response})
+            elif token == "strings" and value != "":
                 response = get_token_strings(value, search_type)
                 if response is not None:
                     pipeline.append({"$match": response})
