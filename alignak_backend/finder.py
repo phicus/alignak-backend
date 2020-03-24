@@ -831,13 +831,12 @@ def get_token_downtime(value, search_type):
 
 
 def get_token_crit(value, search_type):
-    # if value in ("false", "no"):
-    #     return get_token_isnot("critical", search_type)
-    # elif value in ("true", "yes"):
-    #     return get_token_is("critical", search_type)
-    # else:
-    #     return get_token_is("critical", search_type)
-    return None
+    if value in ("false", "no"):
+        return get_token_isnot("critical", search_type)
+    elif value in ("true", "yes"):
+        return get_token_is("critical", search_type)
+    else:
+        return get_token_is("critical", search_type)
 
 
 def get_token_strings(value, search_type):
