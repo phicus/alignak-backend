@@ -31,8 +31,8 @@ from alignak_backend.mongo_aggregation import MongoAggregation
 
 def all_hosts(search, sort, pagination, user, debug=False):
     realm = user['_realm']
-    aggregation = MongoAggregation()
-    pipeline = aggregation.get_aggregation(search, realm, sort, pagination)
+    mongo_aggregation = MongoAggregation()
+    pipeline = mongo_aggregation.get_aggregation(search, realm, sort, pagination)
 
     mongo = app.data.driver.db
     host = mongo["host"]
@@ -44,7 +44,7 @@ def all_hosts(search, sort, pagination, user, debug=False):
 
     app.logger.debug('\n\n\n==> Aggregation: {}\n\n\n'.format(agregation_list))
 
-    result = agregation_list[0] if len(agregation_list) > 0 else aggregation.get_default_response()
+    result = agregation_list[0] if len(agregation_list) > 0 else mongo_aggregation.get_default_response()
     result['hosts'] = host.find({"name": {"$ne": "_dummy"}, "_is_template": False}).count()
     result['services'] = service.count()
 
@@ -55,7 +55,7 @@ def all_hosts(search, sort, pagination, user, debug=False):
         debug = {
             'aggregation': pipeline,
             'search': search,
-            'search_dict': aggregation.get_tokens(search),
+            'search_dict': mongo_aggregation.get_tokens(search),
             'execution_time': str(elapsed)
         }
         result['debug'] = debug
