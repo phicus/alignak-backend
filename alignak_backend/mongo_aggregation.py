@@ -26,6 +26,47 @@ class MongoAggregation:
             }
         self.pipeline = []
 
+    def get_default_response(self):
+        return {
+            'count': 0,
+            'results': [],
+            'pagination': {
+                'offset': int(self.pagination['offset']),
+                'limit': int(self.pagination['limit'])
+            },
+            'sort': {
+                'field': self.field,
+                'order': 'DESC' if self.order == '-' else 'ASC'
+            },
+        }
+
+    def get_tokens(self, search=""):
+        search_tokens = search.lower().split(' ')
+        for token in search_tokens:
+            if ':' in token:
+                key, value = tuple(token.split(':'))
+                if key not in self.search_dict:
+                    self.search_dict[key] = []
+
+                if key in self.unique_keys:  # This keys can't be append, there must be only one value for them
+                    self.search_dict[key] = value
+                else:
+                    self.search_dict[key].append(value)
+            else:
+                if 'strings' not in self.search_dict:
+                    self.search_dict['strings'] = []
+                if token != '':
+                    self.search_dict['strings'].append(token)
+        return self.search_dict
+
+    def get_aggregation(self, search="", realm=None, sort=None, pagination=None):
+        self.get_tokens(search)
+        self.__join_tables()
+        self.__get_pipeline(realm)
+        self.__sort_and_paginate(sort, pagination)
+
+        return self.pipeline
+
     def __is_int(value):
         try:
             num = int(value)
@@ -164,6 +205,83 @@ class MongoAggregation:
                 'services_customs': {
                     '$objectToArray': '$services.customs'
                 }
+            }
+        })
+
+    def __get_pipeline(self, realm):
+        # Second filter by user realm if defined, and remove templates and dummys
+        if realm is not None:
+            self.pipeline.append({"$match": {
+                "_realm": ObjectId(realm),
+                "name": {"$ne": "_dummy"},
+                "_is_template": False
+            }})
+        else:
+            self.pipeline.append({"$match": {
+                "name": {"$ne": "_dummy"},
+                "_is_template": False
+            }})
+
+        # Thirt define scope of search: all, host or service and remove it from search_dict
+        search_type = self.search_dict.get('type', 'all')
+        self.search_dict.pop('type', None)
+
+        # Fourth for every token in search_dict append specific search
+        for token in self.search_dict:
+            for value in self.search_dict[token]:
+                get_token_function = "_MongoAggregation__get_token_{}".format(token)
+                get_token = getattr(self, get_token_function, None)
+                if get_token is not None:
+                    response = get_token(value, search_type)
+                    if response is not None:
+                        self.pipeline.append({"$match": response})
+
+        return self.pipeline
+
+    def __sort_and_paginate(self, sort=None, pagination=None):
+        if sort is not None:
+            self.order, self.field = re.match("([-]?)(\\w+)", sort).groups()
+
+        self.pipeline.append({
+            '$sort': {
+                self.field: -1 if self.order == '-' else 1,
+                'ls_state_id': -1,
+                'services.ls_state_id': -1,
+            }
+        })
+
+        if pagination is not None:
+            self.pagination = {
+                'offset': int(pagination['offset']) or 0,
+                'limit': int(pagination['limit']) or 10
+            }
+
+        self.pipeline.append({
+            '$group': {
+                '_id': None,
+                'count': {'$sum': 1},
+                'results': {'$push': '$$ROOT'}
+            }
+        })
+        self.pipeline.append({
+            '$project': {
+                '_id': 0,
+                'count': 1,
+                'results': {'$slice': ['$results', self.pagination['offset'], self.pagination['limit']]}
+            }
+        })
+        self.pipeline.append({
+            '$addFields': {
+                'pagination': {
+                    'offset':  self.pagination['offset'],
+                    'limit': self.pagination['limit'],
+                    # 'prev': None if offset <= 0 or offset - limit < 0 else offset - limit,
+                    # 'next': offset + limit if offset <=
+                },
+                'sort': {
+                    'field': self.field,
+                    'order': 'DESC' if self.order == '-' else 'ASC'
+                },
             }
         })
 
@@ -848,123 +966,3 @@ class MongoAggregation:
                     {"services_customs.v": regx},
                 ]
             }
-
-    def __get_pipeline(self, realm):
-        # First join all necesary tables
-        self.__join_tables()
-
-        # Second filter by user realm if defined, and remove templates and dummys
-        if realm is not None:
-            self.pipeline.append({"$match": {
-                "_realm": ObjectId(realm),
-                "name": {"$ne": "_dummy"},
-                "_is_template": False
-            }})
-        else:
-            self.pipeline.append({"$match": {
-                "name": {"$ne": "_dummy"},
-                "_is_template": False
-            }})
-
-        # Thirt define scope of search: all, host or service and remove it from search_dict
-        search_type = self.search_dict.get('type', 'all')
-        self.search_dict.pop('type', None)
-
-        # Fourth for every token in search_dict append specific search
-        for token in self.search_dict:
-            for value in self.search_dict[token]:
-                get_token_function = "_MongoAggregation__get_token_{}".format(token)
-                get_token = getattr(self, get_token_function, None)
-                if get_token is not None:
-                    response = get_token(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-
-        return self.pipeline
-
-    def __sort_and_paginate(self, sort=None, pagination=None):
-        if sort is not None:
-            self.order, self.field = re.match("([-]?)(\\w+)", sort).groups()
-
-        self.pipeline.append({
-            '$sort': {
-                self.field: -1 if self.order == '-' else 1,
-                'ls_state_id': -1,
-                'services.ls_state_id': -1,
-            }
-        })
-
-        if pagination is not None:
-            self.pagination = {
-                'offset': int(pagination['offset']) or 0,
-                'limit': int(pagination['limit']) or 10
-            }
-
-        self.pipeline.append({
-            '$group': {
-                '_id': None,
-                'count': {'$sum': 1},
-                'results': {'$push': '$$ROOT'}
-            }
-        })
-        self.pipeline.append({
-            '$project': {
-                '_id': 0,
-                'count': 1,
-                'results': {'$slice': ['$results', self.pagination['offset'], self.pagination['limit']]}
-            }
-        })
-        self.pipeline.append({
-            '$addFields': {
-                'pagination': {
-                    'offset':  self.pagination['offset'],
-                    'limit': self.pagination['limit'],
-                    # 'prev': None if offset <= 0 or offset - limit < 0 else offset - limit,
-                    # 'next': offset + limit if offset <=
-                },
-                'sort': {
-                    'field': self.field,
-                    'order': 'DESC' if self.order == '-' else 'ASC'
-                },
-            }
-        })
-
-    def get_default_response(self):
-        return {
-            'count': 0,
-            'results': [],
-            'pagination': {
-                'offset': int(self.pagination['offset']),
-                'limit': int(self.pagination['limit'])
-            },
-            'sort': {
-                'field': self.field,
-                'order': 'DESC' if self.order == '-' else 'ASC'
-            },
-        }
-
-    def get_tokens(self, search=""):
-        search_tokens = search.lower().split(' ')
-        for token in search_tokens:
-            if ':' in token:
-                key, value = tuple(token.split(':'))
-                if key not in self.search_dict:
-                    self.search_dict[key] = []
-
-                if key in self.unique_keys:  # This keys can't be append, there must be only one value for them
-                    self.search_dict[key] = value
-                else:
-                    self.search_dict[key].append(value)
-            else:
-                if 'strings' not in self.search_dict:
-                    self.search_dict['strings'] = []
-                if token != '':
-                    self.search_dict['strings'].append(token)
-        return self.search_dict
-
-    def get_aggregation(self, search="", realm=None, sort=None, pagination=None):
-        self.get_tokens(search)
-        self.__get_pipeline(realm)
-        self.__sort_and_paginate(sort, pagination)
-
-        return self.pipeline
