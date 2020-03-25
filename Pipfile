@@ -1,0 +1,24 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+future = "*"
+docopt = "*"
+jsonschema = "==2.6.0"
+jsmin = "==2.2.2"
+configparser = "==3.5.0"
+influxdb = "==5.1.0"
+statsd = "==3.2.2"
+Eve = "==0.7.9"
+Eve-Swagger = "==0.0.11"
+Flask = "<=0.12,>=0.10.1"
+Flask-PyMongo = "<2.0.0"
+Flask-Bootstrap = "==3.3.7.1"
+Flask-APScheduler = "==1.8.0"
+
+[requires]
+python_version = "3.8"
