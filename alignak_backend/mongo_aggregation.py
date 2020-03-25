@@ -389,6 +389,9 @@ class MongoAggregation:
         # print('get_token_bi ==> {}'.format(response))
         return response
 
+    def __get_token_bp(self, value, search_type):
+        return self.__get_token_bi(value, search_type)
+
     def __get_token_name(self, value, search_type):
         if value == "":
             return None
@@ -420,7 +423,7 @@ class MongoAggregation:
             }
 
     def __get_token_host(self, value, search_type):
-        if value == "":
+        if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
         return {
@@ -431,8 +434,11 @@ class MongoAggregation:
             ]
         }
 
+    def __get_token_h(self, value, search_type):
+        return self.__get_token_host(vaue, search_type)
+
     def __get_token_service(self, value, search_type):
-        if value == "":
+        if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
         return {
@@ -442,8 +448,11 @@ class MongoAggregation:
             ]
         }
 
+    def __get_token_s(self, value, search_type):
+        return self.__get_token_service(value, search_type)
+
     def __get_token_contact(self, value, search_type):
-        if value == "":
+        if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
         return {
@@ -453,8 +462,11 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_hgroup(self, value, search_type):
-        if value == "":
+    def __get_token_c(self, value, search_type):
+        return self.__get_token_contact(value, search_type)
+
+    def __get_token_hostgroup(self, value, search_type):
+        if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
         return {
@@ -464,8 +476,14 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_sgroup(self, value, search_type):
-        if value == "":
+    def __get_token_hgroup(self, value, search_type):
+        return self.__get_token_hostgroup(value, search_type)
+
+    def __get_token_hg(self, value, search_type):
+        return self.__get_token_hostgroup(value, search_type)
+
+    def __get_token_servicegroup(self, value, search_type):
+        if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
         return {
@@ -475,8 +493,14 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_cgroup(self, value, search_type):
-        if value == "":
+    def __get_token_sgroup(self, value, search_type):
+        return self.__get_token_servicegroup(value, search_type)
+
+    def __get_token_sg(self, value, search_type):
+        return self.__get_token_servicegroup(value, search_type)
+
+    def __get_token_contactgroup(self, value, search_type):
+        if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
         if search_type == 'host':
@@ -502,6 +526,12 @@ class MongoAggregation:
                     {"services_contactgroups.alias": regx},
                 ]
             }
+
+    def __get_token_cgroup(self, value, search_type):
+        return self.__get_token_contactgroup(value, search_type)
+
+    def __get_token_cg(self, value, search_type):
+        return self.__get_token_contactgroup(value, search_type)
 
     def __get_token_realm(self, value, search_type):
         if value == "":
@@ -532,7 +562,7 @@ class MongoAggregation:
             }
 
     def __get_token_htag(self, value, search_type):
-        if value == "":
+        if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
         return {
@@ -542,7 +572,7 @@ class MongoAggregation:
         }
 
     def __get_token_stag(self, value, search_type):
-        if value == "":
+        if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
         return {
@@ -552,7 +582,7 @@ class MongoAggregation:
         }
 
     def __get_token_ctag(self, value, search_type):
-        if value == "":
+        if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
         if search_type == 'host':
@@ -665,7 +695,7 @@ class MongoAggregation:
         #     l2 = ''
         return None
 
-    def __get_token_loc(self, value, search_type):
+    def __get_token_location(self, value, search_type):
         if value == "":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -675,6 +705,9 @@ class MongoAggregation:
                 {"customs.v": regx},
             ]
         }
+
+    def __get_token_loc(self, value, search_type):
+        return self.__get_token_location(value, search_type)
 
     def __get_token_vendor(self, value, search_type):
         if value == "":
@@ -756,13 +789,19 @@ class MongoAggregation:
         else:
             return get_token_is("downtime", search_type)
 
-    def __get_token_crit(self, value, search_type):
+    def __get_token_critical(self, value, search_type):
         if value in ("false", "no"):
             return get_token_isnot("critical", search_type)
         elif value in ("true", "yes"):
             return get_token_is("critical", search_type)
         else:
             return get_token_is("critical", search_type)
+
+    def __get_token_crit(self, value, search_type):
+        return self.__get_token_critical(value, search_type)
+
+    def __get_token_cri(self, value, search_type):
+        return self.__get_token_critical(value, search_type)
 
     def __get_token_strings(self, value, search_type):
         if value == "":
@@ -827,130 +866,19 @@ class MongoAggregation:
                 "_is_template": False
             }})
 
-        # Thirt define scope of search: all, host or service
+        # Thirt define scope of search: all, host or service and remove it from search_dict
         search_type = self.search_dict.get('type', 'all')
+        self.search_dict.pop('type', None)
 
         # Fourth for every token in search_dict append specific search
-        # Todo maybe is possible to do with reflexive call methods?
         for token in self.search_dict:
             for value in self.search_dict[token]:
-                if token == "is":
-                    response = self.__get_token_is(value, search_type)
+                get_token_function = "_MongoAggregation__get_token_{}".format(token)
+                get_token = getattr(self, get_token_function, None)
+                if get_token is not None:
+                    response = get_token(value, search_type)
                     if response is not None:
                         self.pipeline.append({"$match": response})
-                elif token == "isnot":
-                    response = self.__get_token_isnot(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "bi" or token == "bp":
-                    response = self.__get_token_bi(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "name":
-                    response = self.__get_token_name(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif (token == "h" or token == "host") and value != "all":
-                    response = self.__get_token_host(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif (token == "s" or token == "service") and value != "all":
-                    response = self.__get_token_service(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif (token == "c" or token == "contact") and value != "all":
-                    response = self.__get_token_contact(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif (token == "hg" or token == "hgroup") and value != "all":
-                    response = self.__get_token_hgroup(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif (token == "sg" or token == "sgroup") and value != "all":
-                    response = self.__get_token_sgroup(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif (token == "cg" or token == "cgroup") and value != "all":
-                    response = self.__get_token_cgroup(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "realm":
-                    response = self.__get_token_realm(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "htag" and value != "all":
-                    response = self.__get_token_htag(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "stag" and value != "all":
-                    response = self.__get_token_stag(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "ctag" and value != "all":
-                    response = self.__get_token_ctag(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "duration":
-                    response = self.__get_token_duration(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "tech":
-                    response = self.__get_token_tech(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "perf":
-                    response = self.__get_token_perf(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "reg":
-                    response = self.__get_token_reg(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "regstate":
-                    response = self.__get_token_regstate(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "loc":
-                    response = self.__get_token_loc(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "vendor":
-                    response = self.__get_token_vendor(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "model":
-                    response = self.__get_token_model(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "city":
-                    response = self.__get_token_city(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "isaccess":
-                    response = self.__get_token_isaccess(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "his":
-                    response = self.__get_token_his(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "ack":
-                    response = self.__get_token_ack(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "downtime":
-                    response = self.__get_token_downtime(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "crit" or token == "critical":
-                    response = self.__get_token_crit(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-                elif token == "strings" and value != "":
-                    response = self.__get_token_strings(value, search_type)
-                    if response is not None:
-                        self.pipeline.append({"$match": response})
-
 
         return self.pipeline
 
