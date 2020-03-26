@@ -75,7 +75,7 @@ class MongoAggregation:
 
         return self.pipeline
 
-    def __is_int(value):
+    def __is_int(self, value):
         try:
             num = int(value)
         except ValueError:
@@ -259,18 +259,18 @@ class MongoAggregation:
                 "ls_last_check": 1,
                 "ls_next_check": 1,
                 "ls_output": 1,
-                "services._id": 1,
-                "services.name": 1,
-                "services.business_impact": 1,
-                "services.ls_acknowledged": 1,
-                "services.active_checks_enabled": 1,
-                "services.downtimed": 1,
-                "services.event_handler_enabled": 1,
-                "services.ls_state_id": 1,
-                "services.ls_state": 1,
-                "services.ls_last_check": 1,
-                "services.ls_next_check": 1,
-                "services.ls_output": 1,
+                "services._id": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.name": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.business_impact": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.ls_acknowledged": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.active_checks_enabled": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.downtimed": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.event_handler_enabled": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.ls_state_id": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.ls_state": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.ls_last_check": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.ls_next_check": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services.ls_output": 1 if search_type == 'service' or search_type == 'all' else 0,
             }
         })
 
