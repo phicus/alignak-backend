@@ -3,6 +3,14 @@ import json
 from bson.objectid import ObjectId
 from datetime import datetime
 
+# To Test it:
+# from alignak_backend.mongo_aggregation import MongoAggregation
+# from bson import json_util
+# import json
+# a = MongoAggregation()
+# json.dumps(a.get_aggregation("isnot:UP isnot:OK isnot:PENDING isnot:ACK isnot:DOWNTIME isnot:SOFT"), default=json_util.default)
+# json.dumps(a.get_aggregation("isnot:UP isnot:OK isnot:PENDING isnot:ACK isnot:DOWNTIME isnot:SOFT bi:>=2"), default=json_util.default)
+
 
 class MongoAggregation:
 
@@ -209,7 +217,7 @@ class MongoAggregation:
         })
 
     def __get_pipeline(self, realm):
-        # Second filter by user realm if defined, and remove templates and dummys
+        # First filter by user realm if defined, and remove templates and dummys
         if realm is not None:
             self.pipeline.append({"$match": {
                 "_realm": ObjectId(realm),
@@ -222,11 +230,11 @@ class MongoAggregation:
                 "_is_template": False
             }})
 
-        # Thirt define scope of search: all, host or service and remove it from search_dict
+        # Second define scope of search: all, host or service and remove it from search_dict
         search_type = self.search_dict.get('type', 'all')
         self.search_dict.pop('type', None)
 
-        # Fourth for every token in search_dict append specific search
+        # Thirt for every token in search_dict append specific search
         for token in self.search_dict:
             for value in self.search_dict[token]:
                 get_token_function = "_MongoAggregation__get_token_{}".format(token)
@@ -235,6 +243,36 @@ class MongoAggregation:
                     response = get_token(value, search_type)
                     if response is not None:
                         self.pipeline.append({"$match": response})
+                # todo add possible bad tokens and notify
+
+        # Fourth include only the next attributes
+        self.pipeline.append({
+            "$project": {
+                "name": 1,
+                "ls_acknowledged": 1,
+                "active_checks_enabled": 1,
+                "downtimed": 1,
+                "event_handler_enabled": 1,
+                "business_impact": 1,
+                "ls_state_id": 1,
+                "ls_state": 1,
+                "ls_last_check": 1,
+                "ls_next_check": 1,
+                "ls_output": 1,
+                "services._id": 1,
+                "services.name": 1,
+                "services.business_impact": 1,
+                "services.ls_acknowledged": 1,
+                "services.active_checks_enabled": 1,
+                "services.downtimed": 1,
+                "services.event_handler_enabled": 1,
+                "services.ls_state_id": 1,
+                "services.ls_state": 1,
+                "services.ls_last_check": 1,
+                "services.ls_next_check": 1,
+                "services.ls_output": 1,
+            }
+        })
 
         return self.pipeline
 
@@ -245,6 +283,8 @@ class MongoAggregation:
         self.pipeline.append({
             '$sort': {
                 self.field: -1 if self.order == '-' else 1,
+                'business_impact': -1,
+                'services.business_impact': -1,
                 'ls_state_id': -1,
                 'services.ls_state_id': -1,
             }
@@ -341,32 +381,32 @@ class MongoAggregation:
         elif search_type == 'service':
             token_isnot = {
                 "OK": {
-                    "$or": [
-                        {"services": None},
+                    "$and": [
+                        {"services": {"$ne": None}},
                         {"services.ls_state_id": {"$ne": 0}}
                     ]
                 },
                 "PENDING": {
-                    "$or": [
-                        {"services": None},
+                    "$and": [
+                        {"services": {"$ne": None}},
                         {"services.ls_state": {"$ne": "PENDING"}},
                     ]
                 },
                 "ACK": {
-                    "$or": [
-                        {"services": None},
+                    "$and": [
+                        {"services": {"$ne": None}},
                         {"services.ls_acknowledged": False},
                     ]
                 },
                 "DOWNTIME": {
-                    "$or": [
-                        {"services": None},
+                    "$and": [
+                        {"services": {"$ne": None}},
                         {"services.ls_downtimed": False},
                     ]
                 },
                 "SOFT": {
-                    "$or": [
-                        {"services": None},
+                    "$and": [
+                        {"services": {"$ne": None}},
                         {"services.ls_state_type": {"$ne": "SOFT"}},
                     ]
                 },
@@ -374,10 +414,10 @@ class MongoAggregation:
         else:
             token_isnot = {
                 "UP": {
-                    "$and": [
+                    "$or": [
                         {
-                            "$or": [
-                                {"services": None},
+                            "$and": [
+                                {"services": {"$ne": None}},
                                 {"services.ls_state_id": {"$ne": 0}}
                             ]
                         },
@@ -385,10 +425,10 @@ class MongoAggregation:
                     ]
                 },
                 "OK": {
-                    "$and": [
+                    "$or": [
                         {
-                            "$or": [
-                                {"services": None},
+                            "$and": [
+                                {"services": {"$ne": None}},
                                 {"services.ls_state_id": {"$ne": 0}}
                             ]
                         },
@@ -396,10 +436,10 @@ class MongoAggregation:
                     ]
                 },
                 "PENDING": {
-                    "$and": [
+                    "$or": [
                         {
-                            "$or": [
-                                {"services": None},
+                            "$and": [
+                                {"services": {"$ne": None}},
                                 {"services.ls_state": {"$ne": "PENDING"}},
                             ]
                         },
@@ -407,10 +447,10 @@ class MongoAggregation:
                     ]
                 },
                 "ACK": {  # Host.ls_acknowledged = false / Host.services.ls_acknowledged = true
-                    "$and": [
+                    "$or": [
                         {
-                            "$or": [
-                                {"services": None},
+                            "$and": [
+                                {"services": {"$ne": None}},
                                 {"services.ls_acknowledged": False},
                             ]
                         },
@@ -418,10 +458,10 @@ class MongoAggregation:
                     ]
                 },
                 "DOWNTIME": {
-                    "$and": [
+                    "$or": [
                         {
-                            "$or": [
-                                {"services": None},
+                            "$and": [
+                                {"services": {"$ne": None}},
                                 {"services.ls_downtimed": False},
                             ]
                         },
@@ -431,8 +471,8 @@ class MongoAggregation:
                 "SOFT": {
                     "$or": [
                         {
-                            "$or": [
-                                {"services": None},
+                            "$and": [
+                                {"services": {"$ne": None}},
                                 {"services.ls_state_type": {"$ne": "SOFT"}},
                             ]
                         },
@@ -475,32 +515,103 @@ class MongoAggregation:
                 response = None
         elif search_type == 'service':
             if operator == '' or operator == '=' or operator == '==':
-                response = {"services.business_impact": int(value)}
+                response = {
+                                "$or": [
+                                    {"services": None},
+                                    {"services.business_impact": int(value)},
+                                ]
+                            }
             elif operator == '>':
-                response = {"services.business_impact": {"$gt": int(value)}}
+                response = {
+                                "$or": [
+                                    {"services": None},
+                                    {"services.business_impact": {"$gt": int(value)}},
+                                ]
+                            }
             elif operator == '>=' or operator == '=>':
-                response = {"services.business_impact": {"$gte": int(value)}}
+                response = {
+                                "$or": [
+                                    {"services": None},
+                                    {"services.business_impact": {"$gte": int(value)}},
+                                ]
+                            }
             elif operator == '<':
-                response = {"services.business_impact": {"$lt": int(value)}}
+                response = {
+                                "$or": [
+                                    {"services": None},
+                                    {"services.business_impact": {"$lt": int(value)}},
+                                ]
+                            }
             elif operator == '<=' or operator == '=<':
-                response = {"services.business_impact": {"$lte": int(value)}}
+                response = {
+                    "$or": [
+                        {"services": None},
+                        {"services.business_impact": {"$lte": int(value)}},
+                    ]
+                }
             else:
                 response = None
         else:
             if operator == '' or operator == '=' or operator == '==':
-                response = {"$or": [{"business_impact": int(value)}, {"services.business_impact": int(value)}]}
+                response = {
+                    "$or": [
+                        {"business_impact": int(value)},
+                        {
+                            "$or": [
+                                {"services": None},
+                                {"services.business_impact": int(value)},
+                            ]
+                        }
+                    ]
+                }
             elif operator == '>':
-                response = {"$or": [{"business_impact": {"$gt": int(value)}},
-                                    {"services.business_impact": {"$gt": int(value)}}]}
+                response = {
+                    "$or": [
+                        {"business_impact": {"$gt": int(value)}},
+                        {
+                            "$or": [
+                                {"services": None},
+                                {"services.business_impact": {"$gt": int(value)}},
+                            ]
+                        }
+                    ]
+                }
             elif operator == '>=' or operator == '=>':
-                response = {"$or": [{"business_impact": {"$gte": int(value)}},
-                                    {"services.business_impact": {"$gte": int(value)}}]}
+                response = {
+                    "$or": [
+                        {"business_impact": {"$gte": int(value)}},
+                        {
+                            "$or": [
+                                {"services": None},
+                                {"services.business_impact": {"$gte": int(value)}},
+                            ]
+                        }
+                    ]
+                }
             elif operator == '<':
-                response = {"$or": [{"business_impact": {"$lt": int(value)}},
-                                    {"services.business_impact": {"$lt": int(value)}}]}
+                response = {
+                    "$or": [
+                        {"business_impact": {"$lt": int(value)}},
+                        {
+                            "$or": [
+                                {"services": None},
+                                {"services.business_impact": {"$lt": int(value)}},
+                            ]
+                        }
+                    ]
+                }
             elif operator == '<=' or operator == '=<':
-                response = {"$or": [{"business_impact": {"$lte": int(value)}},
-                                    {"services.business_impact": {"$lte": int(value)}}]}
+                response = {
+                    "$or": [
+                        {"business_impact": {"$lte": int(value)}},
+                        {
+                            "$or": [
+                                {"services": None},
+                                {"services.business_impact": {"$lte": int(value)}},
+                            ]
+                        }
+                    ]
+                }
             else:
                 response = None
 
