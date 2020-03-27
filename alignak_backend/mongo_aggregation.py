@@ -19,6 +19,14 @@ class MongoAggregation:
         self.search_dict = {
             'type': 'all'
         }
+        self.valid_search_types = ['all', 'host', 'service']
+        self.mongo_comparation_operators = {
+            ">": "$gt", ">=": "$gte", "=>": "$gte",
+            "<": "$lt", "<=": "$lte", "=<": "$lte",
+            "=": "$eq", "==": "$eq",
+        }
+        self.seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+        self.search_type = 'all'
         self.order = 1
         self.field = '_id'
         if sort is not None:
@@ -69,6 +77,7 @@ class MongoAggregation:
 
     def get_aggregation(self, search="", realm=None, sort=None, pagination=None):
         self.get_tokens(search)
+        self.__get_search_type()
         self.__join_tables()
         self.__get_pipeline(realm)
         self.__sort_and_paginate(sort, pagination)
@@ -112,35 +121,36 @@ class MongoAggregation:
                 'preserveNullAndEmptyArrays': True
             }
         })
-        self.pipeline.append({
-            '$lookup': {
-                'from': 'service',
-                'localField': '_id',
-                'foreignField': 'host',
-                'as': 'services'
-            }
-        })
-        self.pipeline.append({
-            '$unwind': {
-                'path': '$services',
-                'preserveNullAndEmptyArrays': True
-            }
-        })
-        # Todo check if return correct values
-        self.pipeline.append({
-            '$lookup': {
-                'from': 'servicegroup',
-                'localField': '_id',
-                'foreignField': 'services',
-                'as': 'servicegroup'
-            }
-        })
-        self.pipeline.append({
-            '$unwind': {
-                'path': '$servicegroup',
-                'preserveNullAndEmptyArrays': True
-            }
-        })
+        if self.search_type != 'host':
+            self.pipeline.append({
+                '$lookup': {
+                    'from': 'service',
+                    'localField': '_id',
+                    'foreignField': 'host',
+                    'as': 'services'
+                }
+            })
+            self.pipeline.append({
+                '$unwind': {
+                    'path': '$services',
+                    'preserveNullAndEmptyArrays': True
+                }
+            })
+            # Todo check if return correct values
+            self.pipeline.append({
+                '$lookup': {
+                    'from': 'servicegroup',
+                    'localField': '_id',
+                    'foreignField': 'services',
+                    'as': 'servicegroup'
+                }
+            })
+            self.pipeline.append({
+                '$unwind': {
+                    'path': '$servicegroup',
+                    'preserveNullAndEmptyArrays': True
+                }
+            })
         # Todo check if really needs in all cases
         self.pipeline.append({
             '$lookup': {
@@ -171,36 +181,37 @@ class MongoAggregation:
                 'preserveNullAndEmptyArrays': True
             }
         })
-        # Todo check if really needs in all cases
-        self.pipeline.append({
-            '$lookup': {
-                'from': 'user',
-                'localField': '_id',
-                'foreignField': 'services.users',
-                'as': 'services_contacts'
-            }
-        })
-        self.pipeline.append({
-            '$unwind': {
-                'path': '$services_contacts',
-                'preserveNullAndEmptyArrays': True
-            }
-        })
-        # Todo check if really needs in all cases
-        self.pipeline.append({
-            '$lookup': {
-                'from': 'usergroup',
-                'localField': '_id',
-                'foreignField': 'services.usergroups',
-                'as': 'services_contactgroups'
-            }
-        })
-        self.pipeline.append({
-            '$unwind': {
-                'path': '$services_contactgroups',
-                'preserveNullAndEmptyArrays': True
-            }
-        })
+        if self.search_type != 'host':
+            # Todo check if really needs in all cases
+            self.pipeline.append({
+                '$lookup': {
+                    'from': 'user',
+                    'localField': '_id',
+                    'foreignField': 'services.users',
+                    'as': 'services_contacts'
+                }
+            })
+            self.pipeline.append({
+                '$unwind': {
+                    'path': '$services_contacts',
+                    'preserveNullAndEmptyArrays': True
+                }
+            })
+            # Todo check if really needs in all cases
+            self.pipeline.append({
+                '$lookup': {
+                    'from': 'usergroup',
+                    'localField': '_id',
+                    'foreignField': 'services.usergroups',
+                    'as': 'services_contactgroups'
+                }
+            })
+            self.pipeline.append({
+                '$unwind': {
+                    'path': '$services_contactgroups',
+                    'preserveNullAndEmptyArrays': True
+                }
+            })
         self.pipeline.append({
             '$addFields': {
                 'customs': {
@@ -208,13 +219,20 @@ class MongoAggregation:
                 }
             }
         })
-        self.pipeline.append({
-            '$addFields': {
-                'services_customs': {
-                    '$objectToArray': '$services.customs'
+        if self.search_type != 'host':
+            self.pipeline.append({
+                '$addFields': {
+                    'services_customs': {
+                        '$objectToArray': '$services.customs'
+                    }
                 }
-            }
-        })
+            })
+
+    def __get_search_type(self):
+        search_type = self.search_dict.get('type', 'all')
+        if search_type in self.valid_search_types:
+            self.search_type = search_type
+        self.search_dict.pop('type', None)
 
     def __get_pipeline(self, realm):
         # First filter by user realm if defined, and remove templates and dummys
@@ -230,22 +248,18 @@ class MongoAggregation:
                 "_is_template": False
             }})
 
-        # Second define scope of search: all, host or service and remove it from search_dict
-        search_type = self.search_dict.get('type', 'all')
-        self.search_dict.pop('type', None)
-
-        # Thirt for every token in search_dict append specific search
+        # Second for every token in search_dict append specific search
         for token in self.search_dict:
             for value in self.search_dict[token]:
                 get_token_function = "_MongoAggregation__get_token_{}".format(token)
                 get_token = getattr(self, get_token_function, None)
                 if get_token is not None:
-                    response = get_token(value, search_type)
+                    response = get_token(value)
                     if response is not None:
                         self.pipeline.append({"$match": response})
                 # todo add possible bad tokens and notify
 
-        # Fourth include only the next attributes
+        # Third include only the next attributes
         self.pipeline.append({
             "$project": {
                 "name": 1,
@@ -259,18 +273,18 @@ class MongoAggregation:
                 "ls_last_check": 1,
                 "ls_next_check": 1,
                 "ls_output": 1,
-                "services._id": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.name": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.business_impact": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.ls_acknowledged": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.active_checks_enabled": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.downtimed": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.event_handler_enabled": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.ls_state_id": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.ls_state": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.ls_last_check": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.ls_next_check": 1 if search_type == 'service' or search_type == 'all' else 0,
-                "services.ls_output": 1 if search_type == 'service' or search_type == 'all' else 0,
+                "services._id": 1 if self.search_type != 'host' else 0,
+                "services.name": 1 if self.search_type != 'host' else 0,
+                "services.business_impact": 1 if self.search_type != 'host' else 0,
+                "services.ls_acknowledged": 1 if self.search_type != 'host' else 0,
+                "services.active_checks_enabled": 1 if self.search_type != 'host' else 0,
+                "services.downtimed": 1 if self.search_type != 'host' else 0,
+                "services.event_handler_enabled": 1 if self.search_type != 'host' else 0,
+                "services.ls_state_id": 1 if self.search_type != 'host' else 0,
+                "services.ls_state": 1 if self.search_type != 'host' else 0,
+                "services.ls_last_check": 1 if self.search_type != 'host' else 0,
+                "services.ls_next_check": 1 if self.search_type != 'host' else 0,
+                "services.ls_output": 1 if self.search_type != 'host' else 0,
             }
         })
 
@@ -325,9 +339,11 @@ class MongoAggregation:
             }
         })
 
-    def __get_token_is(self, value, search_type):
+    # Get Token functions, all must be with the name formula __get_token_is_<search_token>
+
+    def __get_token_is(self, value):
         value = value.upper()
-        if search_type == 'host':
+        if self.search_type == 'host':
             token_is = {
                 "UP": {"ls_state_id": 0},
                 "PENDING": {"ls_state": "PENDING"},
@@ -335,7 +351,7 @@ class MongoAggregation:
                 "DOWNTIME": {"ls_downtimed": True},
                 "SOFT": {"ls_state_type": "SOFT"},
             }
-        elif search_type == 'service':
+        elif self.search_type == 'service':
             token_is = {
                 "OK": {"services.ls_state_id": 0},
                 "PENDING": {"services.ls_state": "PENDING"},
@@ -356,9 +372,9 @@ class MongoAggregation:
         if type(value) == str and value in token_is:
             response = token_is[value]
         elif self.__is_int(value):
-            if search_type == 'host':
+            if self.search_type == 'host':
                 response = {"ls_state": int(value)}
-            elif search_type == 'service':
+            elif self.search_type == 'service':
                 response = {"services.ls_state": int(value)}
             else:
                 response = {"$or": [{"ls_state": int(value)}, {"services.ls_state": int(value)}]}
@@ -368,9 +384,9 @@ class MongoAggregation:
         # print('get_token_is ==> {}'.format(response))
         return response
 
-    def __get_token_isnot(self, value, search_type):
+    def __get_token_isnot(self, value):
         value = value.upper()
-        if search_type == 'host':
+        if self.search_type == 'host':
             token_isnot = {
                 "UP": {"ls_state_id": {"$ne": 0}},
                 "PENDING": {"ls_state": {"$ne": "PENDING"}},
@@ -378,7 +394,7 @@ class MongoAggregation:
                 "DOWNTIME": {"ls_downtimed": False},
                 "SOFT": {"ls_state_type": {"$ne": "SOFT"}},
             }
-        elif search_type == 'service':
+        elif self.search_type == 'service':
             token_isnot = {
                 "OK": {
                     "$and": [
@@ -484,9 +500,9 @@ class MongoAggregation:
         if type(value) == str and value in token_isnot:
             response = token_isnot[value]
         elif self.__is_int(value):
-            if search_type == 'host':
+            if self.search_type == 'host':
                 response = {"ls_state_id": {"$ne": int(value)}}
-            elif search_type == 'service':
+            elif self.search_type == 'service':
                 response = {"services.ls_state_id": {"$ne": int(value)}}
             else:
                 response = {
@@ -497,10 +513,10 @@ class MongoAggregation:
         # print('get_token_isnot ==> {}'.format(response))
         return response
 
-    def __get_token_bi(self, value, search_type):
+    def __get_token_bi(self, value):
         operator, value = re.match("([=><]{0,2})(\\d)", value).groups()
 
-        if search_type == 'host':
+        if self.search_type == 'host':
             if operator == '' or operator == '=' or operator == '==':
                 response = {"business_impact": int(value)}
             elif operator == '>':
@@ -513,7 +529,7 @@ class MongoAggregation:
                 response = {"business_impact": {"$lte": int(value)}}
             else:
                 response = None
-        elif search_type == 'service':
+        elif self.search_type == 'service':
             if operator == '' or operator == '=' or operator == '==':
                 response = {
                                 "$or": [
@@ -618,14 +634,14 @@ class MongoAggregation:
         # print('get_token_bi ==> {}'.format(response))
         return response
 
-    def __get_token_bp(self, value, search_type):
-        return self.__get_token_bi(value, search_type)
+    def __get_token_bp(self, value):
+        return self.__get_token_bi(value)
 
-    def __get_token_name(self, value, search_type):
+    def __get_token_name(self, value):
         if value == "":
             return None
         regx = re.compile(value, re.IGNORECASE)
-        if search_type == 'host':
+        if self.search_type == 'host':
             return {
                 "$or": [
                     {"alias": regx},
@@ -633,7 +649,7 @@ class MongoAggregation:
                     {"name": regx},
                 ]
             }
-        elif search_type == 'service':
+        elif self.search_type == 'service':
             return {
                 "$or": [
                     {"services.name": regx},
@@ -651,7 +667,7 @@ class MongoAggregation:
                 ]
             }
 
-    def __get_token_host(self, value, search_type):
+    def __get_token_host(self, value):
         if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -663,10 +679,10 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_h(self, value, search_type):
-        return self.__get_token_host(vaue, search_type)
+    def __get_token_h(self, value):
+        return self.__get_token_host(value)
 
-    def __get_token_service(self, value, search_type):
+    def __get_token_service(self, value):
         if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -677,10 +693,10 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_s(self, value, search_type):
-        return self.__get_token_service(value, search_type)
+    def __get_token_s(self, value):
+        return self.__get_token_service(value)
 
-    def __get_token_contact(self, value, search_type):
+    def __get_token_contact(self, value):
         if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -691,10 +707,10 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_c(self, value, search_type):
-        return self.__get_token_contact(value, search_type)
+    def __get_token_c(self, value):
+        return self.__get_token_contact(value)
 
-    def __get_token_hostgroup(self, value, search_type):
+    def __get_token_hostgroup(self, value):
         if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -705,13 +721,13 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_hgroup(self, value, search_type):
-        return self.__get_token_hostgroup(value, search_type)
+    def __get_token_hgroup(self, value):
+        return self.__get_token_hostgroup(value)
 
-    def __get_token_hg(self, value, search_type):
-        return self.__get_token_hostgroup(value, search_type)
+    def __get_token_hg(self, value):
+        return self.__get_token_hostgroup(value)
 
-    def __get_token_servicegroup(self, value, search_type):
+    def __get_token_servicegroup(self, value):
         if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -722,24 +738,24 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_sgroup(self, value, search_type):
-        return self.__get_token_servicegroup(value, search_type)
+    def __get_token_sgroup(self, value):
+        return self.__get_token_servicegroup(value)
 
-    def __get_token_sg(self, value, search_type):
-        return self.__get_token_servicegroup(value, search_type)
+    def __get_token_sg(self, value):
+        return self.__get_token_servicegroup(value)
 
-    def __get_token_contactgroup(self, value, search_type):
+    def __get_token_contactgroup(self, value):
         if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
-        if search_type == 'host':
+        if self.search_type == 'host':
             return {
                 "$or": [
                     {"contactgroups.name": regx},
                     {"contactgroups.alias": regx},
                 ]
             }
-        elif search_type == 'service':
+        elif self.search_type == 'service':
             return {
                 "$or": [
                     {"services_contactgroups.name": regx},
@@ -756,24 +772,24 @@ class MongoAggregation:
                 ]
             }
 
-    def __get_token_cgroup(self, value, search_type):
-        return self.__get_token_contactgroup(value, search_type)
+    def __get_token_cgroup(self, value):
+        return self.__get_token_contactgroup(value)
 
-    def __get_token_cg(self, value, search_type):
-        return self.__get_token_contactgroup(value, search_type)
+    def __get_token_cg(self, value):
+        return self.__get_token_contactgroup(value)
 
-    def __get_token_realm(self, value, search_type):
+    def __get_token_realm(self, value):
         if value == "":
             return None
         regx = re.compile(value, re.IGNORECASE)
-        if search_type == 'host':
+        if self.search_type == 'host':
             return {
                 "$or": [
                     {"realm.name": regx},
                     {"realm.alias": regx},
                 ]
             }
-        elif search_type == 'service':
+        elif self.search_type == 'service':
             return {
                 "$or": [
                     {"services.realm.name": regx},
@@ -790,7 +806,7 @@ class MongoAggregation:
                 ]
             }
 
-    def __get_token_htag(self, value, search_type):
+    def __get_token_htag(self, value):
         if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -800,7 +816,7 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_stag(self, value, search_type):
+    def __get_token_stag(self, value):
         if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -810,17 +826,17 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_ctag(self, value, search_type):
+    def __get_token_ctag(self, value):
         if value == "" or value == "all":
             return None
         regx = re.compile(value, re.IGNORECASE)
-        if search_type == 'host':
+        if self.search_type == 'host':
             return {
                 "$or": [
                     {"contacts.tags": regx},
                 ]
             }
-        elif search_type == 'service':
+        elif self.search_type == 'service':
             return {
                 "$or": [
                     {"services_contacts.tags": regx},
@@ -834,39 +850,32 @@ class MongoAggregation:
                 ]
             }
 
-    def __get_token_duration(self, value, search_type):
-        seconds_per_unit = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
-        mongo_comparation_operators = {
-            ">": "$gt", ">=": "$gte", "=>": "$gte",
-            "<": "$lt", "<=": "$lte", "=<": "$lte",
-            "=": "$eq", "==": "$eq",
-        }
+    def __get_token_duration(self, value):
         operator, value = re.match("([=><]{0,2})(\\d)", value).groups()
         if value == "":
             return None
-
-        duration = time.time() - (int(value[0:-1]) * seconds_per_unit[value[-1]])
-        if search_type == 'host':
+        duration = time.time() - (int(value[0:-1]) * self.seconds_per_unit[value[-1]])
+        if self.search_type == 'host':
             return {
                 "$or": [
-                    {"ls_last_state_changed": {mongo_comparation_operators[operator]: duration}},
+                    {"ls_last_state_changed": {self.mongo_comparation_operators[operator]: duration}},
                 ]
             }
-        elif search_type == 'service':
+        elif self.search_type == 'service':
             return {
                 "$or": [
-                    {"services.ls_last_state_changed": {mongo_comparation_operators[operator]: duration}},
+                    {"services.ls_last_state_changed": {self.mongo_comparation_operators[operator]: duration}},
                 ]
             }
         else:
             return {
                 "$or": [
-                    {"ls_last_state_changed": {mongo_comparation_operators[operator]: duration}},
-                    {"services.ls_last_state_changed": {mongo_comparation_operators[operator]: duration}},
+                    {"ls_last_state_changed": {self.mongo_comparation_operators[operator]: duration}},
+                    {"services.ls_last_state_changed": {self.mongo_comparation_operators[operator]: duration}},
                 ]
             }
 
-    def __get_token_tech(self, value, search_type):
+    def __get_token_tech(self, value):
         if value == "":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -877,36 +886,31 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_perf(self, value, search_type):
-        mongo_comparation_operators = {
-            ">": "$gt", ">=": "$gte", "=>": "$gte",
-            "<": "$lt", "<=": "$lte", "=<": "$lte",
-            "=": "$eq", "==": "$eq",
-        }
+    def __get_token_perf(self, value):
         perf, operator, value = re.match("([\\w_]+)([=><]{0,2})(\\d)", value).groups()
         if value == "":
             return None
-        if search_type == 'host':
+        if self.search_type == 'host':
             return {
                 "$or": [
-                    {"ls_perf_data": {mongo_comparation_operators[operator]: value}},
+                    {"ls_perf_data": {self.mongo_comparation_operators[operator]: value}},
                 ]
             }
-        elif search_type == 'service':
+        elif self.search_type == 'service':
             return {
                 "$or": [
-                    {"services.ls_perf_data": {mongo_comparation_operators[operator]: value}},
+                    {"services.ls_perf_data": {self.mongo_comparation_operators[operator]: value}},
                 ]
             }
         else:
             return {
                 "$or": [
-                    {"ls_perf_data": {mongo_comparation_operators[operator]: value}},
-                    {"services.ls_perf_data": {mongo_comparation_operators[operator]: value}},
+                    {"ls_perf_data": {self.mongo_comparation_operators[operator]: value}},
+                    {"services.ls_perf_data": {self.mongo_comparation_operators[operator]: value}},
                 ]
             }
 
-    def __get_token_reg(self, value, search_type):
+    def __get_token_reg(self, value):
         # if i.__class__.my_type == 'service':
         #     l2 = i.host.cpe_registration_tags.split(',')
         # elif i.__class__.my_type == 'host':
@@ -915,7 +919,7 @@ class MongoAggregation:
         #     l2 = []
         return None
 
-    def __get_token_regstate(self, value, search_type):
+    def __get_token_regstate(self, value):
         # if i.__class__.my_type == 'service':
         #     l2 = i.host.cpe_registration_state
         # elif i.__class__.my_type == 'host':
@@ -924,7 +928,7 @@ class MongoAggregation:
         #     l2 = ''
         return None
 
-    def __get_token_location(self, value, search_type):
+    def __get_token_location(self, value):
         if value == "":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -935,10 +939,10 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_loc(self, value, search_type):
-        return self.__get_token_location(value, search_type)
+    def __get_token_loc(self, value):
+        return self.__get_token_location(value)
 
-    def __get_token_vendor(self, value, search_type):
+    def __get_token_vendor(self, value):
         if value == "":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -949,7 +953,7 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_model(self, value, search_type):
+    def __get_token_model(self, value):
         if value == "":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -965,7 +969,7 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_city(self, value, search_type):
+    def __get_token_city(self, value):
         if value == "":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -976,7 +980,7 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_isaccess(self, value, search_type):
+    def __get_token_isaccess(self, value):
         if value in ('yes', '1'):
             value = '1'
         elif value in ('no', '0'):
@@ -991,7 +995,7 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_his(self, value, search_type):
+    def __get_token_his(self, value):
         if value == "":
             return None
         regx = re.compile(value, re.IGNORECASE)
@@ -1002,41 +1006,41 @@ class MongoAggregation:
             ]
         }
 
-    def __get_token_ack(self, value, search_type):
+    def __get_token_ack(self, value):
         if value in ("false", "no"):
-            return get_token_isnot("ack", search_type)
+            return get_token_isnot("ack")
         elif value in ("true", "yes"):
-            return get_token_is("ack", search_type)
+            return get_token_is("ack")
         else:
-            return get_token_is("ack", search_type)
+            return get_token_is("ack")
 
-    def __get_token_downtime(self, value, search_type):
+    def __get_token_downtime(self, value):
         if value in ("false", "no"):
-            return get_token_isnot("downtime", search_type)
+            return get_token_isnot("downtime")
         elif value in ("true", "yes"):
-            return get_token_is("downtime", search_type)
+            return get_token_is("downtime")
         else:
-            return get_token_is("downtime", search_type)
+            return get_token_is("downtime")
 
-    def __get_token_critical(self, value, search_type):
+    def __get_token_critical(self, value):
         if value in ("false", "no"):
-            return get_token_isnot("critical", search_type)
+            return get_token_isnot("critical")
         elif value in ("true", "yes"):
-            return get_token_is("critical", search_type)
+            return get_token_is("critical")
         else:
-            return get_token_is("critical", search_type)
+            return get_token_is("critical")
 
-    def __get_token_crit(self, value, search_type):
-        return self.__get_token_critical(value, search_type)
+    def __get_token_crit(self, value):
+        return self.__get_token_critical(value)
 
-    def __get_token_cri(self, value, search_type):
-        return self.__get_token_critical(value, search_type)
+    def __get_token_cri(self, value):
+        return self.__get_token_critical(value)
 
-    def __get_token_strings(self, value, search_type):
+    def __get_token_strings(self, value):
         if value == "":
             return None
         regx = re.compile(value, re.IGNORECASE)
-        if search_type == 'host':
+        if self.search_type == 'host':
             return {
                 "$or": [
                     {"address": regx},
@@ -1051,7 +1055,7 @@ class MongoAggregation:
                     {"realm.name": regx},
                 ]
             }
-        elif search_type == 'service':
+        elif self.search_type == 'service':
             return {
                 "$or": [
                     {"services.name": regx},
