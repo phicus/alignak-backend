@@ -8,8 +8,20 @@ from datetime import datetime
 # from bson import json_util
 # import json
 # a = MongoAggregation()
+
+# To get search tokens
+# a.get_tokens("")
+# a.get_tokens("isnot:UP isnot:OK isnot:PENDING isnot:ACK isnot:DOWNTIME isnot:SOFT")
+# a.get_tokens("isnot:UP isnot:OK isnot:PENDING isnot:ACK isnot:DOWNTIME isnot:SOFT bi:>=2")
+
+# To get aggregation
+# json.dumps(a.get_aggregation(""), default=json_util.default)
 # json.dumps(a.get_aggregation("isnot:UP isnot:OK isnot:PENDING isnot:ACK isnot:DOWNTIME isnot:SOFT"), default=json_util.default)
 # json.dumps(a.get_aggregation("isnot:UP isnot:OK isnot:PENDING isnot:ACK isnot:DOWNTIME isnot:SOFT bi:>=2"), default=json_util.default)
+
+# To query in mongo:
+# mongo alignak-backend
+# db.host.aggregate(<dump_result_without_quotes>, {allowDiskUse: true})
 
 
 class MongoAggregation:
@@ -93,34 +105,41 @@ class MongoAggregation:
 
     def __join_tables(self):
         self.pipeline = []
-        self.pipeline.append({
-            '$lookup': {
-                'from': 'hostgroup',
-                'localField': '_id',
-                'foreignField': 'hosts',
-                'as': 'hostgroup'
-            }
-        })
-        self.pipeline.append({
-            '$unwind': {
-                'path': '$hostgroup',
-                'preserveNullAndEmptyArrays': True
-            }
-        })
-        self.pipeline.append({
-            '$lookup': {
-                'from': 'realm',
-                'localField': '_realm',
-                'foreignField': '_id',
-                'as': 'realm'
-            }
-        })
-        self.pipeline.append({
-            '$unwind': {
-                'path': '$realm',
-                'preserveNullAndEmptyArrays': True
-            }
-        })
+
+        if "hostgroup" in self.search_dict.keys() \
+                or "hgroup" in self.search_dict.keys() \
+                or "hg" in self.search_dict.keys():
+            self.pipeline.append({
+                '$lookup': {
+                    'from': 'hostgroup',
+                    'localField': '_id',
+                    'foreignField': 'hosts',
+                    'as': 'hostgroup'
+                }
+            })
+            self.pipeline.append({
+                '$unwind': {
+                    'path': '$hostgroup',
+                    'preserveNullAndEmptyArrays': True
+                }
+            })
+
+        if "realm" in self.search_dict.keys():
+            self.pipeline.append({
+                '$lookup': {
+                    'from': 'realm',
+                    'localField': '_realm',
+                    'foreignField': '_id',
+                    'as': 'realm'
+                }
+            })
+            self.pipeline.append({
+                '$unwind': {
+                    'path': '$realm',
+                    'preserveNullAndEmptyArrays': True
+                }
+            })
+
         if self.search_type != 'host':
             self.pipeline.append({
                 '$lookup': {
@@ -136,97 +155,120 @@ class MongoAggregation:
                     'preserveNullAndEmptyArrays': True
                 }
             })
-            # Todo check if return correct values
-            self.pipeline.append({
-                '$lookup': {
-                    'from': 'servicegroup',
-                    'localField': '_id',
-                    'foreignField': 'services',
-                    'as': 'servicegroup'
-                }
-            })
-            self.pipeline.append({
-                '$unwind': {
-                    'path': '$servicegroup',
-                    'preserveNullAndEmptyArrays': True
-                }
-            })
-        # Todo check if really needs in all cases
-        self.pipeline.append({
-            '$lookup': {
-                'from': 'user',
-                'localField': '_id',
-                'foreignField': 'users',
-                'as': 'contacts'
-            }
-        })
-        self.pipeline.append({
-            '$unwind': {
-                'path': '$contacts',
-                'preserveNullAndEmptyArrays': True
-            }
-        })
-        # Todo check if really needs in all cases
-        self.pipeline.append({
-            '$lookup': {
-                'from': 'usergroup',
-                'localField': '_id',
-                'foreignField': 'usergroups',
-                'as': 'contactgroups'
-            }
-        })
-        self.pipeline.append({
-            '$unwind': {
-                'path': '$contactgroups',
-                'preserveNullAndEmptyArrays': True
-            }
-        })
-        if self.search_type != 'host':
-            # Todo check if really needs in all cases
+
+            if "servicegroup" in self.search_dict.keys() \
+                    or "sgroup" in self.search_dict.keys() \
+                    or "sg" in self.search_dict.keys():
+                self.pipeline.append({
+                    '$lookup': {
+                        'from': 'servicegroup',
+                        'localField': '_id',
+                        'foreignField': 'services',
+                        'as': 'servicegroup'
+                    }
+                })
+                self.pipeline.append({
+                    '$unwind': {
+                        'path': '$servicegroup',
+                        'preserveNullAndEmptyArrays': True
+                    }
+                })
+
+        if "contact" in self.search_dict.keys() \
+                or "ctag" in self.search_dict.keys():
             self.pipeline.append({
                 '$lookup': {
                     'from': 'user',
                     'localField': '_id',
-                    'foreignField': 'services.users',
-                    'as': 'services_contacts'
+                    'foreignField': 'users',
+                    'as': 'contacts'
                 }
             })
             self.pipeline.append({
                 '$unwind': {
-                    'path': '$services_contacts',
+                    'path': '$contacts',
                     'preserveNullAndEmptyArrays': True
                 }
             })
-            # Todo check if really needs in all cases
+
+        if "usergroup" in self.search_dict.keys() \
+                or "ugroup" in self.search_dict.keys() \
+                or "ug" in self.search_dict.keys():
             self.pipeline.append({
                 '$lookup': {
                     'from': 'usergroup',
                     'localField': '_id',
-                    'foreignField': 'services.usergroups',
-                    'as': 'services_contactgroups'
+                    'foreignField': 'usergroups',
+                    'as': 'contactgroups'
                 }
             })
             self.pipeline.append({
                 '$unwind': {
-                    'path': '$services_contactgroups',
+                    'path': '$contactgroups',
                     'preserveNullAndEmptyArrays': True
                 }
             })
-        self.pipeline.append({
-            '$addFields': {
-                'customs': {
-                    '$objectToArray': '$customs'
-                }
-            }
-        })
+
         if self.search_type != 'host':
+            if "contact" in self.search_dict.keys() \
+                    or "ctag" in self.search_dict.keys():
+                self.pipeline.append({
+                    '$lookup': {
+                        'from': 'user',
+                        'localField': '_id',
+                        'foreignField': 'services.users',
+                        'as': 'services_contacts'
+                    }
+                })
+                self.pipeline.append({
+                    '$unwind': {
+                        'path': '$services_contacts',
+                        'preserveNullAndEmptyArrays': True
+                    }
+                })
+
+            # Todo check if really needs in all cases
+            if "usergroup" in self.search_dict.keys() \
+                    or "ugroup" in self.search_dict.keys() \
+                    or "ug" in self.search_dict.keys():
+                self.pipeline.append({
+                    '$lookup': {
+                        'from': 'usergroup',
+                        'localField': '_id',
+                        'foreignField': 'services.usergroups',
+                        'as': 'services_contactgroups'
+                    }
+                })
+                self.pipeline.append({
+                    '$unwind': {
+                        'path': '$services_contactgroups',
+                        'preserveNullAndEmptyArrays': True
+                    }
+                })
+
+        if "tech" in self.search_dict.keys() \
+                or "location" in self.search_dict.keys() \
+                or "loc" in self.search_dict.keys() \
+                or "vendor" in self.search_dict.keys() \
+                or "model" in self.search_dict.keys() \
+                or "city" in self.search_dict.keys() \
+                or "isaccess" in self.search_dict.keys() \
+                or ("strings" in self.search_dict.keys() and len(self.search_dict.get('strings', [])) > 0):
             self.pipeline.append({
                 '$addFields': {
-                    'services_customs': {
-                        '$objectToArray': '$services.customs'
+                    'customs': {
+                        '$objectToArray': '$customs'
                     }
                 }
             })
+            if self.search_type != 'host':
+                self.pipeline.append({
+                    '$addFields': {
+                        'services_customs': {
+                            '$objectToArray': '$services.customs'
+                        }
+                    }
+                })
 
     def __get_search_type(self):
         search_type = self.search_dict.get('type', 'all')
@@ -291,18 +333,40 @@ class MongoAggregation:
         return self.pipeline
 
     def __sort_and_paginate(self, sort=None, pagination=None):
-        if sort is not None:
+        if sort is not None and sort.field not in [
+            "business_impact",
+            "services.business_impact",
+            "ls_state_id",
+            "services.ls_state_id"
+        ]:
             self.order, self.field = re.match("([-]?)(\\w+)", sort).groups()
 
-        self.pipeline.append({
-            '$sort': {
-                self.field: -1 if self.order == '-' else 1,
-                'business_impact': -1,
-                'services.business_impact': -1,
-                'ls_state_id': -1,
-                'services.ls_state_id': -1,
-            }
-        })
+        if self.search_type == 'host':
+            self.pipeline.append({
+                '$sort': {
+                    self.field: -1 if self.order == '-' else 1,
+                    'business_impact': -1,
+                    'ls_state_id': -1,
+                }
+            })
+        elif self.search_type == 'service':
+            self.pipeline.append({
+                '$sort': {
+                    self.field: -1 if self.order == '-' else 1,
+                    'services.business_impact': -1,
+                    'services.ls_state_id': -1,
+                }
+            })
+        else:
+            self.pipeline.append({
+                '$sort': {
+                    self.field: -1 if self.order == '-' else 1,
+                    'business_impact': -1,
+                    'services.business_impact': -1,
+                    'ls_state_id': -1,
+                    'services.ls_state_id': -1,
+                }
+            })
 
         if pagination is not None:
             self.pagination = {
