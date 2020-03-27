@@ -114,15 +114,15 @@ class MongoAggregation:
                     'from': 'hostgroup',
                     'localField': '_id',
                     'foreignField': 'hosts',
-                    'as': 'hostgroup'
+                    'as': 'hostgroup',
                 }
             })
-            self.pipeline.append({
-                '$unwind': {
-                    'path': '$hostgroup',
-                    'preserveNullAndEmptyArrays': True
-                }
-            })
+            # self.pipeline.append({
+            #     '$unwind': {
+            #         'path': '$hostgroup',
+            #         'preserveNullAndEmptyArrays': True
+            #     }
+            # })
 
         if "realm" in self.search_dict.keys():
             self.pipeline.append({
@@ -130,15 +130,15 @@ class MongoAggregation:
                     'from': 'realm',
                     'localField': '_realm',
                     'foreignField': '_id',
-                    'as': 'realm'
+                    'as': 'realm',
                 }
             })
-            self.pipeline.append({
-                '$unwind': {
-                    'path': '$realm',
-                    'preserveNullAndEmptyArrays': True
-                }
-            })
+            # self.pipeline.append({
+            #     '$unwind': {
+            #         'path': '$realm',
+            #         'preserveNullAndEmptyArrays': True
+            #     }
+            # })
 
         if self.search_type != 'host':
             self.pipeline.append({
@@ -146,13 +146,13 @@ class MongoAggregation:
                     'from': 'service',
                     'localField': '_id',
                     'foreignField': 'host',
-                    'as': 'services'
+                    'as': 'services',
                 }
             })
             self.pipeline.append({
                 '$unwind': {
                     'path': '$services',
-                    'preserveNullAndEmptyArrays': True
+                    'preserveNullAndEmptyArrays': False
                 }
             })
 
@@ -164,15 +164,15 @@ class MongoAggregation:
                         'from': 'servicegroup',
                         'localField': '_id',
                         'foreignField': 'services',
-                        'as': 'servicegroup'
+                        'as': 'servicegroup',
                     }
                 })
-                self.pipeline.append({
-                    '$unwind': {
-                        'path': '$servicegroup',
-                        'preserveNullAndEmptyArrays': True
-                    }
-                })
+                # self.pipeline.append({
+                #     '$unwind': {
+                #         'path': '$servicegroup',
+                #         'preserveNullAndEmptyArrays': True
+                #     }
+                # })
 
         if "contact" in self.search_dict.keys() \
                 or "ctag" in self.search_dict.keys():
@@ -181,15 +181,15 @@ class MongoAggregation:
                     'from': 'user',
                     'localField': '_id',
                     'foreignField': 'users',
-                    'as': 'contacts'
+                    'as': 'contacts',
                 }
             })
-            self.pipeline.append({
-                '$unwind': {
-                    'path': '$contacts',
-                    'preserveNullAndEmptyArrays': True
-                }
-            })
+            # self.pipeline.append({
+            #     '$unwind': {
+            #         'path': '$contacts',
+            #         'preserveNullAndEmptyArrays': True
+            #     }
+            # })
 
         if "usergroup" in self.search_dict.keys() \
                 or "ugroup" in self.search_dict.keys() \
@@ -199,15 +199,15 @@ class MongoAggregation:
                     'from': 'usergroup',
                     'localField': '_id',
                     'foreignField': 'usergroups',
-                    'as': 'contactgroups'
+                    'as': 'contactgroups',
                 }
             })
-            self.pipeline.append({
-                '$unwind': {
-                    'path': '$contactgroups',
-                    'preserveNullAndEmptyArrays': True
-                }
-            })
+            # self.pipeline.append({
+            #     '$unwind': {
+            #         'path': '$contactgroups',
+            #         'preserveNullAndEmptyArrays': True
+            #     }
+            # })
 
         if self.search_type != 'host':
             if "contact" in self.search_dict.keys() \
@@ -217,15 +217,15 @@ class MongoAggregation:
                         'from': 'user',
                         'localField': '_id',
                         'foreignField': 'services.users',
-                        'as': 'services_contacts'
+                        'as': 'services_contacts',
                     }
                 })
-                self.pipeline.append({
-                    '$unwind': {
-                        'path': '$services_contacts',
-                        'preserveNullAndEmptyArrays': True
-                    }
-                })
+                # self.pipeline.append({
+                #     '$unwind': {
+                #         'path': '$services_contacts',
+                #         'preserveNullAndEmptyArrays': True
+                #     }
+                # })
 
             # Todo check if really needs in all cases
             if "usergroup" in self.search_dict.keys() \
@@ -236,15 +236,15 @@ class MongoAggregation:
                         'from': 'usergroup',
                         'localField': '_id',
                         'foreignField': 'services.usergroups',
-                        'as': 'services_contactgroups'
+                        'as': 'services_contactgroups',
                     }
                 })
-                self.pipeline.append({
-                    '$unwind': {
-                        'path': '$services_contactgroups',
-                        'preserveNullAndEmptyArrays': True
-                    }
-                })
+                # self.pipeline.append({
+                #     '$unwind': {
+                #         'path': '$services_contactgroups',
+                #         'preserveNullAndEmptyArrays': True
+                #     }
+                # })
 
         if "tech" in self.search_dict.keys() \
                 or "location" in self.search_dict.keys() \
@@ -1111,12 +1111,12 @@ class MongoAggregation:
                     {"alias": regx},
                     {"customs.v": regx},
                     {"display_name": regx},
-                    {"hostgroup.name": regx},
+                    # {"hostgroup.name": regx},
                     {"ls_output": regx},
                     {"ls_state": regx},
                     {"name": regx},
                     {"notes": regx},
-                    {"realm.name": regx},
+                    # {"realm.name": regx},
                 ]
             }
         elif self.search_type == 'service':
@@ -1134,12 +1134,12 @@ class MongoAggregation:
                     {"alias": regx},
                     {"customs.v": regx},
                     {"display_name": regx},
-                    {"hostgroup.name": regx},
+                    # {"hostgroup.name": regx},
                     {"ls_output": regx},
                     {"ls_state": regx},
                     {"name": regx},
                     {"notes": regx},
-                    {"realm.name": regx},
+                    # {"realm.name": regx},
                     {"services.name": regx},
                     {"services.alias": regx},
                     {"services_customs.v": regx},
