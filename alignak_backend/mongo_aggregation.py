@@ -19,6 +19,11 @@ from datetime import datetime
 # json.dumps(a.get_aggregation("isnot:UP isnot:OK isnot:PENDING isnot:ACK isnot:DOWNTIME isnot:SOFT"), default=json_util.default)
 # json.dumps(a.get_aggregation("isnot:UP isnot:OK isnot:PENDING isnot:ACK isnot:DOWNTIME isnot:SOFT bi:>=2"), default=json_util.default)
 
+# To get results count
+# json.dumps(a.get_results(""), default=json_util.default)
+# json.dumps(a.get_results("isnot:UP isnot:OK isnot:PENDING isnot:ACK isnot:DOWNTIME isnot:SOFT"), default=json_util.default)
+# json.dumps(a.get_results("isnot:UP isnot:OK isnot:PENDING isnot:ACK isnot:DOWNTIME isnot:SOFT bi:>=2"), default=json_util.default)
+
 # To query in mongo:
 # mongo alignak-backend
 # db.host.aggregate(<dump_result_without_quotes>, {allowDiskUse: true})
@@ -93,6 +98,17 @@ class MongoAggregation:
         self.__join_tables()
         self.__get_pipeline(realm)
         self.__sort_and_paginate(sort, pagination)
+
+        return self.pipeline
+
+    def get_results(self, search="", realm=None):
+        self.get_tokens(search)
+        self.__get_search_type()
+        self.__join_tables()
+        self.__get_pipeline(realm)
+        self.pipeline.append({
+            "$count": "results"
+        })
 
         return self.pipeline
 
@@ -301,35 +317,6 @@ class MongoAggregation:
                         self.pipeline.append({"$match": response})
                 # todo add possible bad tokens and notify
 
-        # Third include only the next attributes
-        self.pipeline.append({
-            "$project": {
-                "name": 1,
-                "ls_acknowledged": 1,
-                "active_checks_enabled": 1,
-                "downtimed": 1,
-                "event_handler_enabled": 1,
-                "business_impact": 1,
-                "ls_state_id": 1,
-                "ls_state": 1,
-                "ls_last_check": 1,
-                "ls_next_check": 1,
-                "ls_output": 1,
-                "services._id": 1 if self.search_type != 'host' else 0,
-                "services.name": 1 if self.search_type != 'host' else 0,
-                "services.business_impact": 1 if self.search_type != 'host' else 0,
-                "services.ls_acknowledged": 1 if self.search_type != 'host' else 0,
-                "services.active_checks_enabled": 1 if self.search_type != 'host' else 0,
-                "services.downtimed": 1 if self.search_type != 'host' else 0,
-                "services.event_handler_enabled": 1 if self.search_type != 'host' else 0,
-                "services.ls_state_id": 1 if self.search_type != 'host' else 0,
-                "services.ls_state": 1 if self.search_type != 'host' else 0,
-                "services.ls_last_check": 1 if self.search_type != 'host' else 0,
-                "services.ls_next_check": 1 if self.search_type != 'host' else 0,
-                "services.ls_output": 1 if self.search_type != 'host' else 0,
-            }
-        })
-
         return self.pipeline
 
     def __sort_and_paginate(self, sort=None, pagination=None):
@@ -375,33 +362,76 @@ class MongoAggregation:
             }
 
         self.pipeline.append({
-            '$group': {
-                '_id': None,
-                'count': {'$sum': 1},
-                'results': {'$push': '$$ROOT'}
-            }
+            '$skip': self.pagination['offset']
         })
         self.pipeline.append({
-            '$project': {
-                '_id': 0,
-                'count': 1,
-                'results': {'$slice': ['$results', self.pagination['offset'], self.pagination['limit']]}
-            }
+            '$limit': self.pagination['limit']
         })
+
         self.pipeline.append({
-            '$addFields': {
-                'pagination': {
-                    'offset':  self.pagination['offset'],
-                    'limit': self.pagination['limit'],
-                    # 'prev': None if offset <= 0 or offset - limit < 0 else offset - limit,
-                    # 'next': offset + limit if offset <=
-                },
-                'sort': {
-                    'field': self.field,
-                    'order': 'DESC' if self.order == '-' else 'ASC'
-                },
+            "$project": {
+                "name": 1,
+                "ls_acknowledged": 1,
+                "active_checks_enabled": 1,
+                "downtimed": 1,
+                "event_handler_enabled": 1,
+                "business_impact": 1,
+                "ls_state_id": 1,
+                "ls_state": 1,
+                "ls_last_check": 1,
+                "ls_next_check": 1,
+                "ls_output": 1,
+                "services._id": 1 if self.search_type != 'host' else 0,
+                "services.name": 1 if self.search_type != 'host' else 0,
+                "services.business_impact": 1 if self.search_type != 'host' else 0,
+                "services.ls_acknowledged": 1 if self.search_type != 'host' else 0,
+                "services.active_checks_enabled": 1 if self.search_type != 'host' else 0,
+                "services.downtimed": 1 if self.search_type != 'host' else 0,
+                "services.event_handler_enabled": 1 if self.search_type != 'host' else 0,
+                "services.ls_state_id": 1 if self.search_type != 'host' else 0,
+                "services.ls_state": 1 if self.search_type != 'host' else 0,
+                "services.ls_last_check": 1 if self.search_type != 'host' else 0,
+                "services.ls_next_check": 1 if self.search_type != 'host' else 0,
+                "services.ls_output": 1 if self.search_type != 'host' else 0,
             }
         })
+
+
+        # Todo to fix
+        # if pagination is not None:
+        #     self.pagination = {
+        #         'offset': int(pagination['offset']) or 0,
+        #         'limit': int(pagination['limit']) or 10
+        #     }
+        #
+        # self.pipeline.append({
+        #     '$group': {
+        #         '_id': None,
+        #         'count': {'$sum': 1},
+        #         'results': {'$push': '$$ROOT'}
+        #     }
+        # })
+        # self.pipeline.append({
+        #     '$project': {
+        #         '_id': 0,
+        #         'count': 1,
+        #         'results': {'$slice': ['$results', self.pagination['offset'], self.pagination['limit']]}
+        #     }
+        # })
+        # self.pipeline.append({
+        #     '$addFields': {
+        #         'pagination': {
+        #             'offset':  self.pagination['offset'],
+        #             'limit': self.pagination['limit'],
+        #             # 'prev': None if offset <= 0 or offset - limit < 0 else offset - limit,
+        #             # 'next': offset + limit if offset <=
+        #         },
+        #         'sort': {
+        #             'field': self.field,
+        #             'order': 'DESC' if self.order == '-' else 'ASC'
+        #         },
+        #     }
+        # })
 
     # Get Token functions, all must be with the name formula __get_token_is_<search_token>
 
