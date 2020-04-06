@@ -2504,6 +2504,33 @@ if settings['JOBS']:
         scheduler.init_app(app)
         scheduler.start()
 
+@app.route("/all", methods=['GET'])
+def search_all():  # pylint: disable=inconsistent-return-statements
+    from bson import json_util
+    from flask import Response
+    from alignak_backend.finder import all_hosts
+    token = request.headers.get('Authorization') or None
+    user = current_app.data.driver.db['user'].find_one({'token': token})
+
+    if user:
+        print("user: {}".format(user))
+        search = request.args.get('search') or ""
+        sort = request.args.get('sort') or None
+        pagination = {
+            'offset': request.args.get('offset') or 0,
+            'limit': request.args.get('limit') or 10
+        }
+
+        debug = request.args.get('debug') or False
+        # return json.dumps(all_hosts(search, sort, pagination, user, debug), default=json_util.default)
+        return Response(
+            json.dumps(all_hosts(search, sort, pagination, user, debug), default=json_util.default),
+            headers={'Access-Control-Allow-Origin': '*'},
+            # status=200,  ## default value
+            mimetype='application/json'
+        )
+    else:
+        abort(401, description='Please provide proper credentials')
 
 @app.route("/login", methods=['POST'])
 def login_app():  # pylint: disable=inconsistent-return-statements
