@@ -119,7 +119,7 @@ class MongoAggregation:
                     self.search_dict['strings'].append(token)
         return self.search_dict
 
-    def get_hosts(self, search="", user=None, sort=None, pagination=None):
+    def get_hosts(self, search="", user=None, sort=None, pagination=None, debug=False):
         elapsed_services = None
         services_aggregation = None
         services = []
@@ -166,7 +166,7 @@ class MongoAggregation:
                             h['services'] = []
                         h.get('services').append(s)
 
-        return {
+        result = {
             "count": count[0].get('count', 0) if len(count) > 0 else 0,
             "results": hosts,
             "pagination": {
@@ -180,7 +180,10 @@ class MongoAggregation:
             "hosts": self.m_host.find({"name": {"$ne": "_dummy"}, "_is_template": False}).count(),
             "services": self.m_service.count(),
             "bad_tokens": self.bad_tokens,
-            "debug": {
+        }
+
+        if debug:
+            result['debug'] = {
                 "aggregations": {
                     "services": services_aggregation,
                     "hosts": hosts_aggregation,
@@ -195,7 +198,8 @@ class MongoAggregation:
                     "total": "{}".format(elapsed_services + elapsed_hosts + elapsed_count)
                 }
             }
-        }
+
+        return result
 
     def __get_search_type(self):
         search_type = self.search_dict.get('type', 'all')

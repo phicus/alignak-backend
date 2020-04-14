@@ -607,7 +607,7 @@ with app.app_context():
     def test_admin2():
         print('\n==> test_admin2')
         hosts = mongo_aggregation.get_hosts(search="isnot:UP isnot:OK isnot:PENDING isnot:ACK "
-                                                   + "isnot:DOWNTIME isnot:SOFT bi:>=2")
+                                                   + "isnot:DOWNTIME isnot:SOFT bi:>=2", debug=True)
         print("    test_admin2 - Total Host({}/{}): {}".format(len(hosts.get('results')), hosts.get('count'),
                                                                hosts.get('results')))
         print("    test_admin2 - Aggregation: {}".format(
@@ -616,7 +616,7 @@ with app.app_context():
 
     def test_metrics2():
         print('\n==> test_metrics2')
-        hosts = mongo_aggregation.get_hosts(search="hg:gpon perf:rta<50")
+        hosts = mongo_aggregation.get_hosts(search="hg:gpon perf:rta<50", debug=True)
         print("    test_metrics2 - Total Host({}/{}): {}".format(len(hosts.get('results')), hosts.get('count'),
                                                                  hosts.get('results')))
         print("    test_metrics2 - Aggregation: {}".format(
@@ -627,7 +627,7 @@ with app.app_context():
         print('\n==> test_noc2')
         hosts = mongo_aggregation.get_hosts(search="isnot:UP isnot:OK isnot:PENDING isnot:ACK "
                                                    + "isnot:DOWNTIME isnot:SOFT bi:>=2",
-                                            user="noc")
+                                            user="noc", debug=True)
         print("    test_noc2 - Total Host({}/{}): {}".format(len(hosts.get('results')), hosts.get('count'),
                                                              hosts.get('results')))
         print("    test_noc2 - Aggregation: {}".format(
@@ -636,7 +636,7 @@ with app.app_context():
 
     def test_callcenter2():
         print('\n==> test_callcenter2')
-        hosts = mongo_aggregation.get_hosts(search="cpe", user="callcenter")
+        hosts = mongo_aggregation.get_hosts(search="cpe", user="callcenter", debug=True)
         print("    test_callcenter2 - Total Host({}/{}): {}".format(len(hosts.get('results')), hosts.get('count'),
                                                                     hosts.get('results')))
         print("    test_callcenter2 - Aggregation: {}".format(

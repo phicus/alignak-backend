@@ -2504,6 +2504,7 @@ if settings['JOBS']:
         scheduler.init_app(app)
         scheduler.start()
 
+
 @app.route("/all", methods=['GET'])
 def search_all():  # pylint: disable=inconsistent-return-statements
     from bson import json_util
@@ -2531,6 +2532,7 @@ def search_all():  # pylint: disable=inconsistent-return-statements
         )
     else:
         abort(401, description='Please provide proper credentials')
+
 
 @app.route("/login", methods=['POST'])
 def login_app():  # pylint: disable=inconsistent-return-statements
