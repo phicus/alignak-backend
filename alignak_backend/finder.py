@@ -23,7 +23,7 @@
 
 # import re
 # import json
-# from alignak_backend.app import app
+from alignak_backend.app import app
 # from bson.objectid import ObjectId
 # from datetime import datetime
 from alignak_backend.mongo_aggregation import MongoAggregation
@@ -42,7 +42,12 @@ def all_hosts(search, sort, pagination, user, debug=False):
     # aggregation = host.aggregate(pipeline, allowDiskUse=True)
     # agregation_list = list(aggregation)
     #
-    # app.logger.debug('\n\n\n==> Aggregation: {}\n\n\n'.format(agregation_list))
+    app.logger.debug('\n\n\n\t==> All Hosts search: {}'.format(search))
+    app.logger.debug('\t    Sort: {}'.format(sort))
+    app.logger.debug('\t    Pagination: {}'.format(pagination))
+    # app.logger.debug('\t    User: {}'.format(user))
+    app.logger.debug('\t    Debug: {}\n\n\n'.format(debug))
+
     #
     # result = agregation_list[0] if len(agregation_list) > 0 else mongo_aggregation.get_default_response()
     # result['hosts'] = host.find({"name": {"$ne": "_dummy"}, "_is_template": False}).count()
@@ -62,8 +67,14 @@ def all_hosts(search, sort, pagination, user, debug=False):
 
     # return result
 
-    return mongo_aggregation.get_hosts(search=search,
-                                       user=user["name"],
-                                       sort=sort,
-                                       pagination=pagination,
-                                       debug=debug)
+    mongo_aggregation = MongoAggregation()
+    result = mongo_aggregation.get_hosts(search=search,
+                                         user=user["name"],
+                                         sort=sort,
+                                         pagination=pagination,
+                                         debug=debug)
+
+    if debug:
+        app.logger.debug('\n\n\n\t==> Mongo aggregation debug: {}\n\n\n'.format(result['debug']))
+
+    return result

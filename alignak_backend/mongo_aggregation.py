@@ -160,11 +160,17 @@ class MongoAggregation:
 
         if self.search_type != 'host' and len(services) > 0:
             for s in services:
-                for h in hosts:
-                    if h.get('_id') == s.get('host'):
-                        if h.get('services', None) is None:
-                            h['services'] = []
-                        h.get('services').append(s)
+                host = next(h for h in hosts if h.get('_id') == s.get('host'))
+                if host.get('services', None) is None:
+                    host['services'] = []
+                host.get('services').append(s)
+                # host['services'] = s
+                # hosts.append(host)
+                # for h in hosts:
+                #     if h.get('_id') == s.get('host'):
+                #         if h.get('services', None) is None:
+                #             h['services'] = []
+                #         h.get('services').append(s)
 
         result = {
             "count": count[0].get('count', 0) if len(count) > 0 else 0,
@@ -220,16 +226,16 @@ class MongoAggregation:
         # First filter by usergroup if defined, and remove templates and dummys
         if user is not None:
             usergroups = self.get_usergroups(user)
-            self.pipeline.append({"$match": {
-                "usergroups": {"$in": usergroups},
-                "name": {"$ne": "_dummy"},  # todo to deprecated
-                "_is_template": False  # todo to deprecated
-            }})
-        else:  # todo to deprecated
-            self.pipeline.append({"$match": {  # todo to deprecated
-                "name": {"$ne": "_dummy"},  # todo to deprecated
-                "_is_template": False  # todo to deprecated
-            }})  # todo to deprecated
+            if len(usergroups) > 0:
+                self.pipeline.append({"$match": {
+                    "usergroups": {"$in": usergroups},
+                }})
+
+        # todo to deprecated
+        self.pipeline.append({"$match": {  # todo to deprecated
+            "name": {"$ne": "_dummy"},  # todo to deprecated
+            "_is_template": False  # todo to deprecated
+        }})
 
         # Second for every token in search_dict append specific search
         matchs = []
@@ -298,13 +304,16 @@ class MongoAggregation:
             })
 
     def __sort(self, sort=None):
-        if sort is not None and sort.field not in [
-            "business_impact",
-            "services.business_impact",
-            "ls_state_id",
-            "services.ls_state_id"
-        ]:
-            self.order, self.field = re.match("([-]?)(\\w+)", sort).groups()
+        if sort is not None:
+            order, field = re.match("([-]?)(\\w+)", sort).groups()
+            if order is not None and field is not None and field not in [
+                "business_impact",
+                "services.business_impact",
+                "ls_state_id",
+                "services.ls_state_id"
+            ]:
+                self.field = field
+                self.order = order
 
         self.pipeline.append({
             '$sort': {
