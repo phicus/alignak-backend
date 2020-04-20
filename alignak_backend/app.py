@@ -14,11 +14,12 @@ from __future__ import print_function
 
 import json
 import os
-import re
 import sys
 import time
 import uuid
-import socket
+
+import jwt
+
 try:
     from urlparse import urlparse
 except ImportError:
@@ -27,7 +28,6 @@ except ImportError:
 from collections import OrderedDict
 from datetime import datetime, timedelta
 
-import logging
 from logging.config import dictConfig as logger_dictConfig
 
 import requests
@@ -36,7 +36,6 @@ from dateutil import parser
 
 from future.utils import iteritems
 
-import pymongo
 from jsmin import jsmin
 
 from eve import Eve
@@ -73,6 +72,7 @@ class MyTokenAuth(TokenAuth):
     parent_realms = {}
 
     """Authentication token class"""
+
     def check_auth(self, token, allowed_roles, resource, method):
         # pylint: disable=too-many-locals
         """
@@ -89,7 +89,17 @@ class MyTokenAuth(TokenAuth):
         :return: True if user exist and password is ok or if no roles defined, otherwise False
         :rtype: bool
         """
-        user = current_app.data.driver.db['user'].find_one({'token': token})
+        auth = request.headers.get('Authorization').strip()
+        authorization_token_is_jwt = auth.lower().startswith('bearer')
+        if authorization_token_is_jwt:
+            try:
+                public_key = settings["KIWI_RSA_PUBLIC_KEY"]
+                username = jwt.decode(token, public_key, algorithms='RS256')["username"]
+            except (ValueError, KeyError):
+                return False
+            user = current_app.data.driver.db['user'].find_one({'name': username})
+        else:
+            user = current_app.data.driver.db['user'].find_one({'token': token})
         if user:
             # We get all resources we have in the backend for the userrestrictrole with *
             resource_list = list(current_app.config['DOMAIN'])
@@ -194,6 +204,7 @@ class MyTokenAuth(TokenAuth):
 
 class MyValidator(Validator):
     """Specific validator for data model fields types extension"""
+
     # pylint: disable=unused-argument
     def _validate_skill_level(self, skill_level, field, value):
         """Validate 'skill_level' field (always valid)"""
@@ -2172,6 +2183,8 @@ if settings.get('LOGGER', None):
             app.logger.debug('Response: %s', _payload.response)
             if 'Exception on /' in _payload.response:
                 app.logger.error('Response exception: %s', _payload.response)
+
+
     app.on_post_GET += log_endpoint
     app.on_post_POST += log_endpoint
     app.on_post_PUT += log_endpoint
@@ -2633,8 +2646,8 @@ def cron_timeseries():
         graphite_db = current_app.data.driver.db['graphite']
         influxdb_db = current_app.data.driver.db['influxdb']
         if timeseriesretention_db.count() > 0:
-            tsc = timeseriesretention_db.find({'graphite': {'$ne': None}})\
-                .sort('_id')\
+            tsc = timeseriesretention_db.find({'graphite': {'$ne': None}}) \
+                .sort('_id') \
                 .limit(settings['SCHEDULER_TIMESERIES_LIMIT'])
             if tsc.count():
                 current_app.logger.warning("[cron_timeseries]: "
@@ -2646,8 +2659,8 @@ def cron_timeseries():
                 lookup = {"_id": data['_id']}
                 deleteitem_internal('timeseriesretention', False, False, **lookup)
 
-            tsc = timeseriesretention_db.find({'influxdb': {'$ne': None}})\
-                .sort('_id')\
+            tsc = timeseriesretention_db.find({'influxdb': {'$ne': None}}) \
+                .sort('_id') \
                 .limit(settings['SCHEDULER_TIMESERIES_LIMIT'])
             if tsc.count():
                 current_app.logger.warning("[cron_timeseries]: "
@@ -2695,6 +2708,8 @@ if settings.get('GRAFANA_DATASOURCE', True):
                         queries[key] = value
                     print("Using Grafana configuration file: %s" % name)
                     return
+
+
     # The default minimum target queries...
     target_queries = {
         "Hosts": {
@@ -2724,6 +2739,7 @@ if settings.get('GRAFANA_DATASOURCE', True):
         get_grafana_configuration(filename, table_fields)
         current_app.logger.info("Grafana - tables: %s", table_fields)
 
+
     @app.route("/search", methods=['OPTIONS', 'POST'])
     def grafana_search(engine='jsonify'):
         # pylint: disable=too-many-locals
@@ -2751,6 +2767,7 @@ if settings.get('GRAFANA_DATASOURCE', True):
             if engine == 'jsonify':
                 return jsonify(resp)
             return json.dumps(resp)
+
 
     @app.route("/query", methods=['OPTIONS', 'POST'])
     def grafana_query(engine='jsonify'):
@@ -2941,6 +2958,7 @@ if settings.get('GRAFANA_DATASOURCE', True):
 
             return json.dumps(resp)
 
+
     @app.after_request
     def after_request(response):
         """Send correct headers for CORS because Eve do not manage the headers
@@ -2951,6 +2969,7 @@ if settings.get('GRAFANA_DATASOURCE', True):
         response.headers.set('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
         # response.headers.set('Access-Control-Allow-Credentials', 'true')
         return response
+
 
     @app.route("/annotations", methods=['OPTIONS', 'POST'])
     def grafana_annotations(engine='jsonify'):
