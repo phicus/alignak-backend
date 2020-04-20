@@ -159,6 +159,13 @@ def get_schema():
                 'regex': '^[^`~!$%^&*"|\'<>?,()=]+$',
                 'dependencies': ['check_command']
             },
+            'enabled': {
+                'schema_version': 1,
+                'title': 'Host enabled',
+                'comment': '',
+                'type': 'boolean',
+                'default': True
+            },
             'business_impact': {
                 'schema_version': 1,
                 'title': 'Business impact',
