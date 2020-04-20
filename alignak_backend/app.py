@@ -61,6 +61,7 @@ from alignak_backend.livesynthesis import Livesynthesis
 from alignak_backend.models import register_models
 from alignak_backend.template import Template
 from alignak_backend.timeseries import Timeseries
+from alignak_backend.perfdata import PerfDatas
 
 _subcommands = OrderedDict()
 
@@ -555,6 +556,7 @@ def after_insert_logcheckresult(items):
 
         if g.updateLivestate:
             # Update the livestate...
+            perfdata = PerfDatas(item['perf_data'])
             if item['service']:
                 # ...for a service
                 lookup = {"_id": item['service']}
@@ -571,6 +573,7 @@ def after_insert_logcheckresult(items):
                     'ls_output': item['output'],
                     'ls_long_output': item['long_output'],
                     'ls_perf_data': item['perf_data'],
+                    'ls_perfs': {metric.name: metric.value for metric in perfdata.metrics.values()},
                     'ls_current_attempt': item['current_attempt'],
                     'ls_latency': item['latency'],
                     'ls_execution_time': item['execution_time'],
@@ -601,6 +604,7 @@ def after_insert_logcheckresult(items):
                     'ls_output': item['output'],
                     'ls_long_output': item['long_output'],
                     'ls_perf_data': item['perf_data'],
+                    'ls_perfs': {metric.name: metric.value for metric in perfdata.metrics.values()},
                     'ls_current_attempt': item['current_attempt'],
                     'ls_latency': item['latency'],
                     'ls_execution_time': item['execution_time'],
