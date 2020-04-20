@@ -133,8 +133,12 @@ class MongoAggregation:
             start_services = datetime.now()
             services_aggregation = self.__get_pipeline(search_type='service',
                                                        user=user,
-                                                       sort=sort)
+                                                       sort=sort,
+                                                       pagination=pagination)
+            app.logger.debug('\n\n\n\n==> Search: "{}" ==> Aggregation {}: {}\n\n\n\n'.format(search, 'service',
+                                                                                             services_aggregation))
             services = list(self.m_service.aggregate(services_aggregation))
+            app.logger.debug('\n\n\n\n==> Results: "{}"\n\n\n\n'.format(services))
             elapsed_services = datetime.now() - start_services
             service_host_ids = [ObjectId(h) for h in
                                 set([service.get('host') for service in services])]
@@ -145,16 +149,26 @@ class MongoAggregation:
                                                 sort=sort,
                                                 pagination=pagination,
                                                 service_host_ids=service_host_ids)
+        app.logger.debug('\n\n\n\n==> Search: "{}" ==> Aggregation {}: {}\n\n\n\n'.format(search, 'host',
+                                                                                         hosts_aggregation))
         hosts = list(self.m_host.aggregate(hosts_aggregation))
+        app.logger.debug('\n\n\n\n==> Results: "{}"\n\n\n\n'.format(hosts))
         elapsed_hosts = datetime.now() - start_hosts
 
         start_count = datetime.now()
-        count_aggregation = self.__get_pipeline(search_type='host',
-                                                user=user,
-                                                sort=sort,
-                                                pagination=pagination,
-                                                service_host_ids=service_host_ids,
-                                                count=True)
+        if self.search_type == 'service':
+            count_aggregation = self.__get_pipeline(search_type='service',
+                                                    user=user,
+                                                    sort=sort,
+                                                    pagination=pagination,
+                                                    count=True)
+        else:
+            count_aggregation = self.__get_pipeline(search_type='host',
+                                                    user=user,
+                                                    sort=sort,
+                                                    pagination=pagination,
+                                                    service_host_ids=service_host_ids,
+                                                    count=True)
         count = list(self.m_host.aggregate(count_aggregation))
         elapsed_count = datetime.now() - start_count
 
@@ -201,7 +215,7 @@ class MongoAggregation:
                     "services": "{}".format(elapsed_services),
                     "hosts": "{}".format(elapsed_hosts),
                     "count": "{}".format(elapsed_count),
-                    "total": "{}".format(elapsed_services + elapsed_hosts + elapsed_count)
+                    # "total": "{}".format(elapsed_services + elapsed_hosts + elapsed_count)
                 }
             }
 
@@ -250,8 +264,11 @@ class MongoAggregation:
                 else:
                     self.bad_tokens.append(token)
         if service_host_ids is not None and len(service_host_ids) > 0:
-            self.pipeline.append({"$match": {'$or': [{"_id": {"$in": service_host_ids}}, {'$and': matchs}]}})
-        else:
+            if len(matchs) > 0:
+                self.pipeline.append({"$match": {'$or': [{"_id": {"$in": service_host_ids}}, {'$and': matchs}]}})
+            else:
+                self.pipeline.append({"$match": {'$or': [{"_id": {"$in": service_host_ids}}]}})
+        elif len(matchs) > 0:
             self.pipeline.append({"$match": {'$and': matchs}})
 
         # Third, sort, paginate and project fields that we need
