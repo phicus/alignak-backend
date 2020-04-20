@@ -175,6 +175,13 @@ def get_schema():
                 'regex': '^[^`~!$%^&*"|\'<>?,()=]+$',
                 'dependencies': ['host', 'check_command']
             },
+            'enabled': {
+                'schema_version': 1,
+                'title': 'Service enabled',
+                'comment': '',
+                'type': 'boolean',
+                'default': True
+            },
             'business_impact': {
                 'schema_version': 1,
                 'title': 'Business impact',
@@ -894,6 +901,13 @@ def get_schema():
                 'comment': 'Last check performance data',
                 'type': 'string',
                 'default': ''
+            },
+            'ls_perfs': {
+                'schema_version': 1,
+                'title': 'Performance data - as dict',
+                'comment': 'Last check performance data - as dict',
+                'type': 'dict',
+                'default': {}
             },
 
             'ls_current_attempt': {
