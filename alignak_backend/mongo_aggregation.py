@@ -84,13 +84,13 @@ class MongoAggregation:
 
     def get_user(self, user):
         u = self.m_user.find_one({'name': user}, {'_id': 1})
-        # print("    get_user: {}".format(u))  # todo change to logger info
+        app.logger.debug("    get_user: {}".format(u))
         return u
 
     def get_usergroups(self, user):
         u = self.get_user(user).get('_id')
         usergroups = list(self.m_usergroup.find({'users': ObjectId(u)}, {'_id': 1}))
-        # print("    get_usergroups: {}".format(usergroups))  # todo change to logger info
+        app.logger.debug("    get_usergroups: {}".format(usergroups))
         return [ObjectId(token.get('_id')) for token in usergroups]
 
     def get_realms(self, name):
