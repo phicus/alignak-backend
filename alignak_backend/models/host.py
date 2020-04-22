@@ -55,7 +55,7 @@ def get_schema():
         'schema': {
             'schema_version': {
                 'type': 'integer',
-                'default': 3,
+                'default': 4,
             },
             # Importation source
             'imported_from': {
@@ -160,8 +160,8 @@ def get_schema():
                 'dependencies': ['check_command']
             },
             'enabled': {
-                'schema_version': 1,
-                'title': 'Host enabled',
+                'schema_version': 4,
+                'title': 'Flag to enable/skip host access into alignak',
                 'comment': '',
                 'type': 'boolean',
                 'default': True
@@ -880,7 +880,7 @@ def get_schema():
                 'default': ''
             },
             'ls_perfs': {
-                'schema_version': 1,
+                'schema_version': 4,
                 'title': 'Performance data - as dict',
                 'comment': 'Last check performance data - as dict',
                 'type': 'dict',
