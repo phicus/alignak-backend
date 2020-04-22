@@ -292,7 +292,7 @@ class MongoAggregation:
                     "name": 1,
                     "ls_acknowledged": 1,
                     "active_checks_enabled": 1,
-                    "downtimed": 1,
+                    "ls_downtimed": 1,
                     "event_handler_enabled": 1,
                     "business_impact": 1,
                     "ls_state_id": 1,
